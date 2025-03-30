@@ -4,9 +4,9 @@ WORKDIR /var/www
 
 RUN apt-get update && apt-get install -y \
     # build-essential \
-    # libpng-dev \
-    # libjpeg62-turbo-dev \
-    # libfreetype6-dev \
+    libpng-dev \
+    libjpeg62-turbo-dev \
+    libfreetype6-dev \
     # locales \
     zip \
     # jpegoptim optipng pngquant gifsicle \
@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
     # curl \
     libzip-dev \
     # apt-utils \
-    # libonig-dev \
+    libonig-dev \
     libpq-dev \
     # libssl-dev \
     # pkg-config \
