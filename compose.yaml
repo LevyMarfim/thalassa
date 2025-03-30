@@ -1,0 +1,51 @@
+services:
+  php:
+    container_name: thalassa-php
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    restart: always
+    # tty: true
+    volumes:
+      - ./:/var/www
+      # - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - thalassa_network
+  
+  nginx:
+    container_name: thalassa-nginx
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+    restart: always
+    # tty: true
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./:/var/www
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - thalassa_network
+  
+  postgres:
+    container_name: thalassa-postgres
+    image: postgres:17.4-alpine
+    restart: always
+    volumes:
+      - thalassa_psql_data:/var/lib/postgresql/data:rw
+    networks:
+      - thalassa_network
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_DB: thalassa
+      POSTGRES_PASSWORD: thalassa
+      POSTGRES_USER: poseidon
+
+networks:
+  thalassa_network:
+    driver: bridge
+
+volumes:
+  thalassa_psql_data:
