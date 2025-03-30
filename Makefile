@@ -7,6 +7,6 @@ down:
 	docker compose down
 
 prune:
-	docker system prune -a
 	docker volume prune -a
 	docker network prune
+	docker system prune -a
