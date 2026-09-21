@@ -1,7 +1,20 @@
 
 services:
+  app:
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+      - "2019:2019"
+    volumes:
+      - .:/app
+
 ###> doctrine/doctrine-bundle ###
   database:
+    # Ephemeral host port (host 5432 is taken by another project).
+    # Discover it with: docker compose port database 5432
+    # Prefer running console commands inside the app container:
+    # docker compose exec app bin/console ...
     ports:
       - "5432"
 ###< doctrine/doctrine-bundle ###
