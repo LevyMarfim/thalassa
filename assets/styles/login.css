@@ -1,0 +1,15 @@
+/* assets/styles/login.css — login-page specifics (shared auth layout lives in auth.css) */
+
+/* -------------------- Alert -------------------- */
+.alert {
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+.alert--error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+}

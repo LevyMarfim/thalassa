@@ -8,15 +8,28 @@ services:
       - "2019:2019"
     volumes:
       - .:/app
+    environment:
+      # Dev only: restart workers on file changes so edits apply without
+      # rebuilding or restarting. Runtime files (var/) and deps (vendor/)
+      # are deliberately excluded to avoid restart loops.
+      FRANKENPHP_CONFIG: |-
+        worker {
+            file ./public/index.php
+            watch ./src/**/*.php
+            watch ./templates/**/*.twig
+            watch ./config/**/*.yaml
+            watch ./config/**/*.yml
+            watch ./public/*.php
+            watch ./.env
+        }
 
 ###> doctrine/doctrine-bundle ###
   database:
-    # Ephemeral host port (host 5432 is taken by another project).
-    # Discover it with: docker compose port database 5432
-    # Prefer running console commands inside the app container:
-    # docker compose exec app bin/console ...
+    # Pinned so GUI tools (DBeaver) and host CLIs can use localhost:5432.
+    # If another project already holds 5432, `up` fails with
+    # "port is already allocated" — stop the other project first.
     ports:
-      - "5432"
+      - "5432:5432"
 ###< doctrine/doctrine-bundle ###
 
 ###> symfony/mailer ###
