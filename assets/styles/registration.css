@@ -1,0 +1,60 @@
+/* assets/styles/registration.css — register-page specifics (shared auth layout lives in auth.css) */
+
+/* -------------------- Checkbox -------------------- */
+.form-field--checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 4px 0;
+}
+
+.form-checkbox {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--color-primary);
+    flex-shrink: 0;
+}
+
+.form-checkbox-label label {
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.form-checkbox-hint {
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+
+.form-checkbox-hint a { color: var(--color-primary-dark); text-decoration: none; }
+.form-checkbox-hint a:hover { text-decoration: underline; }
+
+/* -------------------- Password strength -------------------- */
+.password-strength { margin-top: 8px; }
+
+.password-strength__bars {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.password-strength__bars span {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-border);
+    transition: background .2s ease;
+}
+
+.password-strength[data-level="1"] .password-strength__bars span:nth-child(-n+1) { background: var(--color-danger); }
+.password-strength[data-level="2"] .password-strength__bars span:nth-child(-n+2) { background: var(--color-warning); }
+.password-strength[data-level="3"] .password-strength__bars span:nth-child(-n+3) { background: #eab308; }
+.password-strength[data-level="4"] .password-strength__bars span               { background: var(--color-primary); }
+
+.password-strength__label {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}

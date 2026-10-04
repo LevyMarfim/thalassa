@@ -1,0 +1,300 @@
+/* assets/styles/auth.css — shared FinFlow auth layout (login + register) */
+
+:root {
+    --color-bg: #0b1220;
+    --color-surface: #ffffff;
+    --color-text: #0f172a;
+    --color-text-muted: #64748b;
+    --color-border: #e2e8f0;
+    --color-border-strong: #cbd5e1;
+    --color-primary: #10b981;
+    --color-primary-dark: #059669;
+    --color-primary-soft: #ecfdf5;
+    --color-danger: #ef4444;
+    --color-warning: #f59e0b;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    --shadow-card: 0 20px 60px rgba(15, 23, 42, 0.12);
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    background-color: var(--color-bg);
+}
+
+body {
+    min-height: 100vh;
+}
+
+.auth-page {
+    min-height: 100vh;
+    width: 100%;
+    padding: 32px 24px;
+    background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(16, 185, 129, 0.18), transparent 60%),
+        radial-gradient(900px 500px at 110% 110%, rgba(59, 130, 246, 0.15), transparent 60%),
+        var(--color-bg);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    background-size: cover;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--color-text);
+}
+
+.auth-shell {
+    width: 100%;
+    max-width: 1080px;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+}
+
+/* -------------------- Aside -------------------- */
+.auth-aside {
+    position: relative;
+    padding: 48px 40px;
+    background:
+        linear-gradient(160deg, #0f172a 0%, #0b2a26 60%, #064e3b 100%);
+    color: #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    isolation: isolate;
+}
+
+.auth-aside::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(400px 200px at 80% 20%, rgba(16, 185, 129, 0.35), transparent 70%),
+        radial-gradient(300px 200px at 10% 90%, rgba(56, 189, 248, 0.25), transparent 70%);
+    pointer-events: none;
+    z-index: -1;
+}
+
+.auth-aside__brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.auth-aside__logo {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+}
+
+.auth-aside__logo svg { width: 100%; height: 100%; }
+
+.auth-aside__name { font-size: 1.1rem; }
+
+.auth-aside__content h2 {
+    font-size: 1.85rem;
+    line-height: 1.2;
+    margin: 0 0 12px;
+    color: #ffffff;
+}
+
+.auth-aside__content p {
+    margin: 0 0 24px;
+    color: #cbd5e1;
+    line-height: 1.55;
+}
+
+.auth-aside__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.auth-aside__list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.95rem;
+    color: #e2e8f0;
+}
+
+.auth-aside__check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    flex-shrink: 0;
+}
+
+.auth-aside__footnote {
+    margin: 32px 0 0;
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+
+/* -------------------- Main -------------------- */
+.auth-main {
+    padding: 48px 44px;
+    display: flex;
+    align-items: center;
+}
+
+.auth-card { width: 100%; }
+
+.auth-card__header { margin-bottom: 28px; }
+
+.auth-card__header h1 {
+    margin: 0 0 8px;
+    font-size: 1.6rem;
+    letter-spacing: -0.01em;
+}
+
+.auth-card__header p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+}
+
+.auth-form { display: flex; flex-direction: column; gap: 18px; }
+
+/* -------------------- Form fields -------------------- */
+.form-field { display: flex; flex-direction: column; gap: 6px; }
+
+.form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.form-input-wrap { position: relative; }
+
+.form-input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 0.95rem;
+    color: var(--color-text);
+    background: #fff;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.form-input::placeholder { color: #94a3b8; }
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+}
+
+.form-input--password { padding-right: 44px; }
+
+.form-input__toggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    background: transparent;
+    border: 0;
+    padding: 6px;
+    border-radius: 6px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.form-input__toggle:hover { color: var(--color-text); background: #f1f5f9; }
+
+/* Field-level errors rendered by Symfony */
+.form-field ul,
+.form-field .form-error-message {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    color: var(--color-danger);
+    font-size: 0.82rem;
+}
+
+/* -------------------- Buttons -------------------- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 18px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background .15s ease, transform .05s ease, box-shadow .15s ease;
+}
+
+.btn--primary {
+    background: var(--color-primary);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.25);
+}
+
+.btn--primary:hover { background: var(--color-primary-dark); }
+.btn--primary:active { transform: translateY(1px); }
+.btn--primary:disabled { opacity: .6; cursor: not-allowed; }
+.btn--block { width: 100%; margin-top: 6px; }
+
+/* -------------------- Footer -------------------- */
+.auth-card__footer {
+    margin: 24px 0 0;
+    text-align: center;
+    font-size: 0.88rem;
+    color: var(--color-text-muted);
+}
+
+.auth-card__footer a {
+    color: var(--color-primary-dark);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.auth-card__footer a:hover { text-decoration: underline; }
+
+/* Explicitly enforce [hidden] on SVGs to beat default display:inline */
+svg[hidden] { display: none !important; }
+
+/* State-driven password-toggle icons so JS just toggles a class */
+.form-input__toggle .icon-eye-off { display: none; }
+.form-input__toggle[aria-pressed="true"] .icon-eye { display: none; }
+.form-input__toggle[aria-pressed="true"] .icon-eye-off { display: inline; }
+
+/* -------------------- Responsive -------------------- */
+@media (max-width: 900px) {
+    .auth-shell { grid-template-columns: 1fr; }
+    .auth-aside { display: none; }
+    .auth-main { padding: 36px 28px; }
+}
+
+@media (max-width: 480px) {
+    .auth-page { padding: 16px; }
+    .auth-main { padding: 28px 20px; }
+    .auth-card__header h1 { font-size: 1.35rem; }
+}
