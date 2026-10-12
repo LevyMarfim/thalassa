@@ -94,18 +94,19 @@
 
                     <div class="form-field">
                         {{ form_label(registrationForm.plainPassword, 'Password', { label_attr: { class: 'form-label' } }) }}
-                        <div class="form-input-wrap">
+                        <div class="form-input-wrap" data-controller="password-toggle">
                             {{ form_widget(registrationForm.plainPassword, {
                                 attr: {
                                     class: 'form-input form-input--password',
                                     placeholder: 'At least 6 characters',
                                     'data-registration-target': 'password',
+                                    'data-password-toggle-target': 'input',
                                     'data-action': 'input->registration#updateStrength'
                                 }
                             }) }}
                             <button type="button"
                                     class="form-input__toggle"
-                                    data-action="click->registration#togglePassword"
+                                    data-action="click->password-toggle#toggle"
                                     aria-label="Show password"
                                     aria-pressed="false">
                                 <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
