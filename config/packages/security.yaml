@@ -36,7 +36,7 @@ security:
         - { path: ^/login, roles: PUBLIC_ACCESS }
         - { path: ^/register, roles: PUBLIC_ACCESS }
         # Secure by default: every future page requires authentication.
-        - { path: ^/, roles: ROLE_USER }
+        - { path: ^/, roles: [IS_AUTHENTICATED_FULLY] }
 
 when@test:
     security:

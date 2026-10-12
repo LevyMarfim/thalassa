@@ -1,0 +1,86 @@
+{# templates/home/index.html.twig #}
+{% extends 'base.html.twig' %}
+
+{% block title %}Dashboard · FinFlow{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('styles/dashboard.css') }}">
+{% endblock %}
+
+{% block body %}
+<div class="dash">
+    <aside class="dash-sidebar">
+        <div class="dash-brand">
+            <span class="dash-brand__logo">{{ include('components/_logo.svg') }}</span>
+            <span>FinFlow</span>
+        </div>
+
+        <nav class="dash-nav" aria-label="Main">
+            <a class="dash-nav__item dash-nav__item--active" href="{{ path('app_home') }}">Dashboard</a>
+            <span class="dash-nav__item">Accounts <span class="dash-nav__soon">soon</span></span>
+            <span class="dash-nav__item">Transactions <span class="dash-nav__soon">soon</span></span>
+            <span class="dash-nav__item">Settings <span class="dash-nav__soon">soon</span></span>
+        </nav>
+
+        <div class="dash-user">
+            <span class="dash-user__avatar" aria-hidden="true">{{ app.user.username|first }}</span>
+            <div class="dash-user__info">
+                <div class="dash-user__name">{{ app.user.username }}</div>
+                <a class="dash-user__logout" href="{{ path('app_logout') }}">Log out</a>
+            </div>
+        </div>
+    </aside>
+
+    <main class="dash-main">
+        <header class="dash-header">
+            <h1>Welcome back, {{ app.user.username }}</h1>
+            <p>Here is your money overview in BRL and USD.</p>
+        </header>
+
+        <div class="dash-grid">
+            <section class="card" aria-labelledby="profile-heading">
+                <h2 id="profile-heading">Profile</h2>
+                <dl>
+                    <div class="profile-row">
+                        <dt>Username</dt>
+                        <dd>{{ app.user.username }}</dd>
+                    </div>
+                    <div class="profile-row">
+                        <dt>Email</dt>
+                        <dd>{{ app.user.email }}</dd>
+                    </div>
+                    <div class="profile-row">
+                        <dt>Member since</dt>
+                        <dd>{{ app.user.createdAt|date('d/m/Y', 'America/Sao_Paulo') }}</dd>
+                    </div>
+                    <div class="profile-row">
+                        <dt>Last access</dt>
+                        <dd>{{ app.user.lastAccessAt ? app.user.lastAccessAt|date('d/m/Y H:i', 'America/Sao_Paulo') : '—' }}</dd>
+                    </div>
+                    <div class="profile-row">
+                        <dt>Status</dt>
+                        <dd><span class="status-badge">{{ app.user.active ? 'Active' : 'Inactive' }}</span></dd>
+                    </div>
+                </dl>
+            </section>
+
+            <section class="card" aria-labelledby="accounts-heading">
+                <h2 id="accounts-heading">Accounts</h2>
+                <div class="empty-state">
+                    <p>No accounts yet.</p>
+                    <small>Your BRL and USD accounts will appear here.</small>
+                </div>
+            </section>
+
+            <section class="card card--wide" aria-labelledby="activity-heading">
+                <h2 id="activity-heading">Recent activity</h2>
+                <div class="empty-state">
+                    <p>No recent activity.</p>
+                    <small>PIX, transfers and bills will show up here once you add an account.</small>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+{% endblock %}

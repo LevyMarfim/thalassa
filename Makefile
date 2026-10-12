@@ -46,3 +46,14 @@ test: ## Reset the test DB, migrate it and run PHPUnit inside the app container
 
 sh: ## Open a shell inside the app container
 	docker compose exec app sh
+
+prune:
+	docker container prune -f
+	docker image prune -a -f
+	docker network prune -f
+	docker volume prune -f
+	docker builder prune -f
+	docker system prune -a -f
+
+status:
+	@docker ps -a --format 'table {{.ID}}\t{{.Image}}\t{{.RunningFor}}\t{{.Status}}\t{{.Names}}\t{{.State}}\t{{.Size}}\t{{.Mounts}}\t{{.Networks}}'
