@@ -2,13 +2,21 @@
 
 namespace App\Entity;
 
-use App\Enum\OperationEnum;
 use App\Repository\OperationTypeRepository;
-use Doctrine\DBAL\Types\Types;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
-use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 
 #[ORM\Entity(repositoryClass: OperationTypeRepository::class)]
+#[UniqueEntity(
+    fields: ['type'],
+    // Case- and whitespace-insensitive, so "aporte", "Aporte" and " Aporte "
+    // are all rejected as duplicates. A plain fields:['type'] check would let
+    // those through; the repository method below matches the DB unique index.
+    repositoryMethod: 'findOneByTypeIgnoreCase',
+    message: 'This operation type already exists.',
+)]
 class OperationType
 {
     #[ORM\Id]
@@ -20,14 +28,15 @@ class OperationType
     private ?string $type = null;
 
     /**
-     * Nullable in PHP only so the form's data mapper can survive an empty
-     * submit long enough for validation to reject it with a 422 (a non-nullable
-     * property makes the mapper throw a TypeError -> 500). The database column
-     * is NOT NULL, which is the real guarantee that every type has an operation.
+     * @var Collection<int, Transaction>
      */
-    #[ORM\Column(enumType: OperationEnum::class)]
-    #[Assert\NotBlank(message: 'Please choose an operation.')]
-    private ?OperationEnum $operation = null;
+    #[ORM\OneToMany(targetEntity: Transaction::class, mappedBy: 'operationType')]
+    private Collection $transactions;
+
+    public function __construct()
+    {
+        $this->transactions = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -46,21 +55,43 @@ class OperationType
         return $this->type;
     }
 
-    public function setType(string $type): static
+    public function setType(?string $type): static
     {
-        $this->type = $type;
+        // Nullable + normalized: the form's data mapper writes before validation
+        // runs, and trimming means " Aporte " collides with "Aporte" instead of
+        // quietly creating a near-duplicate. Case is left alone (these are
+        // display labels, not identifiers) and handled by the unique index.
+        $this->type = null === $type ? null : trim(preg_replace('/\s+/u', ' ', $type) ?? $type);
 
         return $this;
     }
 
-    public function getOperation(): ?OperationEnum
+    /**
+     * @return Collection<int, Transaction>
+     */
+    public function getTransactions(): Collection
     {
-        return $this->operation;
+        return $this->transactions;
     }
 
-    public function setOperation(?OperationEnum $operation): static
+    public function addTransaction(Transaction $transaction): static
     {
-        $this->operation = $operation;
+        if (!$this->transactions->contains($transaction)) {
+            $this->transactions->add($transaction);
+            $transaction->setOperationType($this);
+        }
+
+        return $this;
+    }
+
+    public function removeTransaction(Transaction $transaction): static
+    {
+        if ($this->transactions->removeElement($transaction)) {
+            // set the owning side to null (unless already changed)
+            if ($transaction->getOperationType() === $this) {
+                $transaction->setOperationType(null);
+            }
+        }
 
         return $this;
     }

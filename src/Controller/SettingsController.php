@@ -3,12 +3,11 @@
 
 namespace App\Controller;
 
-use App\Entity\OperationType;
 use App\Entity\User;
 use App\Form\ChangeEmailFormType;
 use App\Form\ChangePasswordFormType;
-use App\Form\OperationTypeFormType;
 use App\Repository\OperationTypeRepository;
+use App\Repository\TickerRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\FormError;
@@ -17,14 +16,32 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
+/**
+ * Settings hub and account section. The other contexts (operation types,
+ * tickers) live in src/Controller/Settings/ so each page stays small.
+ */
 final class SettingsController extends AbstractController
 {
+    /**
+     * Landing page: links into each settings context. Deliberately handles no
+     * forms — a section's write belongs on that section's own page.
+     */
     #[Route('/settings', name: 'app_settings')]
     public function index(
+        OperationTypeRepository $operationTypeRepository,
+        TickerRepository $tickerRepository,
+    ): Response {
+        return $this->render('settings/index.html.twig', [
+            'operationTypeCount' => $operationTypeRepository->count([]),
+            'tickerCount' => $tickerRepository->count([]),
+        ]);
+    }
+
+    #[Route('/settings/account', name: 'app_settings_account')]
+    public function account(
         Request $request,
         EntityManagerInterface $entityManager,
         UserPasswordHasherInterface $passwordHasher,
-        OperationTypeRepository $operationTypeRepository,
     ): Response {
         $user = $this->getUser();
         \assert($user instanceof User);
@@ -35,7 +52,7 @@ final class SettingsController extends AbstractController
             $entityManager->flush();
             $this->addFlash('success', 'Your email has been updated.');
 
-            return $this->redirectToRoute('app_settings');
+            return $this->redirectToRoute('app_settings_account');
         }
 
         $passwordForm = $this->createForm(ChangePasswordFormType::class);
@@ -48,46 +65,13 @@ final class SettingsController extends AbstractController
                 $entityManager->flush();
                 $this->addFlash('success', 'Your password has been updated.');
 
-                return $this->redirectToRoute('app_settings');
+                return $this->redirectToRoute('app_settings_account');
             }
         }
 
-        $operationTypeForm = $this->createForm(OperationTypeFormType::class, new OperationType());
-        $operationTypeForm->handleRequest($request);
-        if ($operationTypeForm->isSubmitted() && $operationTypeForm->isValid()) {
-            $entityManager->persist($operationTypeForm->getData());
-            $entityManager->flush();
-            $this->addFlash('success', 'Operation type created.');
-
-            return $this->redirectToRoute('app_settings');
-        }
-
-        return $this->render('settings/index.html.twig', [
+        return $this->render('settings/account.html.twig', [
             'emailForm' => $emailForm,
             'passwordForm' => $passwordForm,
-            'operationTypeForm' => $operationTypeForm,
-            'operationTypes' => $operationTypeRepository->findBy([], ['type' => 'ASC']),
-        ]);
-    }
-
-    #[Route('/settings/operation-types/{id}/edit', name: 'app_settings_operation_type_edit')]
-    public function editOperationType(
-        Request $request,
-        OperationType $operationType,
-        EntityManagerInterface $entityManager,
-    ): Response {
-        $form = $this->createForm(OperationTypeFormType::class, $operationType);
-        $form->handleRequest($request);
-        if ($form->isSubmitted() && $form->isValid()) {
-            $entityManager->flush();
-            $this->addFlash('success', 'Operation type updated.');
-
-            return $this->redirectToRoute('app_settings');
-        }
-
-        return $this->render('settings/operation_type_edit.html.twig', [
-            'operationType' => $operationType,
-            'form' => $form,
         ]);
     }
 }

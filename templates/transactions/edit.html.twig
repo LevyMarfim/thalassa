@@ -1,0 +1,62 @@
+{# templates/transactions/edit.html.twig #}
+{% extends 'layouts/dashboard.html.twig' %}
+{% set active_nav = 'transactions' %}
+
+{% block title %}Edit transaction · FinFlow{% endblock %}
+
+{% block dashboard_content %}
+        <header class="dash-header">
+            <h1>Edit transaction</h1>
+            <p>{{ transaction.description }}</p>
+        </header>
+
+        <div class="dash-grid">
+            <section class="card" aria-labelledby="edit-heading">
+                <h2 id="edit-heading">Transaction</h2>
+
+                {{ form_start(form, {attr: {class: 'tx-form', novalidate: 'novalidate'}}) }}
+                    <div class="form-field">
+                        {{ form_label(form.movement, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.movement) }}
+                        {{ form_errors(form.movement) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.liquidation, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.liquidation) }}
+                        {{ form_errors(form.liquidation) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.operation, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.operation) }}
+                        {{ form_errors(form.operation) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.operationType, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.operationType) }}
+                        {{ form_errors(form.operationType) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.ticker, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.ticker) }}
+                        {{ form_errors(form.ticker) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.description, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.description, {attr: {class: 'form-input'}}) }}
+                        {{ form_errors(form.description) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.totalPrice, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.totalPrice) }}
+                        {{ form_errors(form.totalPrice) }}
+                    </div>
+
+                    <button type="submit" class="btn btn--primary btn--block">Save changes</button>
+                {{ form_end(form) }}
+
+                <p class="card__back">
+                    <a href="{{ path('app_transactions') }}">← Back to transactions</a>
+                </p>
+            </section>
+        </div>
+{% endblock %}

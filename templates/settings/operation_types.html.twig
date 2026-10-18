@@ -1,0 +1,51 @@
+{# templates/settings/operation_types.html.twig — list + create #}
+{% extends 'layouts/dashboard.html.twig' %}
+{% set active_nav = 'settings' %}
+{% set settings_section = 'operation-types' %}
+
+{% block title %}Operation types · FinFlow{% endblock %}
+
+{% block dashboard_content %}
+        <header class="dash-header">
+            <h1>Operation types</h1>
+            <p>How your movements are categorised, e.g. PIX, TED or boleto.</p>
+        </header>
+
+        {% include 'settings/_nav.html.twig' %}
+
+        <div class="dash-grid">
+            <section class="card card--wide" aria-labelledby="list-heading">
+                <h2 id="list-heading">All operation types</h2>
+
+                {% if operationTypes is empty %}
+                    <div class="empty-state">
+                        <p>No operation types yet.</p>
+                        <small>Add the first one below, e.g. PIX, TED or boleto.</small>
+                    </div>
+                {% else %}
+                    <ul class="type-list">
+                        {% for operationType in operationTypes %}
+                            <li class="type-list__row">
+                                <span class="type-list__name">{{ operationType.type }}</span>
+                                <a class="type-list__edit" href="{{ path('app_settings_operation_type_edit', {id: operationType.id}) }}">Edit</a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </section>
+
+            <section class="card" aria-labelledby="add-heading">
+                <h2 id="add-heading">Add operation type</h2>
+
+                {{ form_start(form, {attr: {class: 'settings-form', novalidate: 'novalidate'}}) }}
+                    <div class="form-field">
+                        {{ form_label(form.type, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.type, {attr: {class: 'form-input'}}) }}
+                        {{ form_errors(form.type) }}
+                    </div>
+
+                    <button type="submit" class="btn btn--primary btn--block">Add operation type</button>
+                {{ form_end(form) }}
+            </section>
+        </div>
+{% endblock %}

@@ -1,4 +1,4 @@
-{# templates/settings/index.html.twig #}
+{# templates/settings/index.html.twig — settings hub, links into each context #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% set active_nav = 'settings' %}
 
@@ -7,80 +7,29 @@
 {% block dashboard_content %}
         <header class="dash-header">
             <h1>Settings</h1>
-            <p>Manage your FinFlow account.</p>
+            <p>Manage your FinFlow account and data.</p>
         </header>
 
         <div class="dash-grid">
-            <section class="card" aria-labelledby="email-heading">
-                <h2 id="email-heading">Email address</h2>
+            <a class="card settings-hub__card" href="{{ path('app_settings_account') }}">
+                <h2>Account</h2>
+                <p class="settings-hub__desc">Your email address and password.</p>
+            </a>
 
-                {{ form_start(emailForm, {attr: {class: 'settings-form', novalidate: 'novalidate'}}) }}
-                    <div class="form-field">
-                        {{ form_label(emailForm.email, 'Email address', {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(emailForm.email, {attr: {class: 'form-input'}}) }}
-                        {{ form_errors(emailForm.email) }}
-                    </div>
+            <a class="card settings-hub__card" href="{{ path('app_settings_operation_types') }}">
+                <h2>Operation types</h2>
+                <p class="settings-hub__desc">
+                    How movements are categorised.
+                    <span class="settings-hub__count">{{ operationTypeCount }} {{ operationTypeCount == 1 ? 'type' : 'types' }}</span>
+                </p>
+            </a>
 
-                    <button type="submit" class="btn btn--primary btn--block">Save email</button>
-                {{ form_end(emailForm) }}
-            </section>
-
-            <section class="card" aria-labelledby="password-heading">
-                <h2 id="password-heading">Password</h2>
-
-                {{ form_start(passwordForm, {attr: {class: 'settings-form', novalidate: 'novalidate'}}) }}
-                    <div class="form-field">
-                        {{ form_label(passwordForm.currentPassword, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(passwordForm.currentPassword, {attr: {class: 'form-input'}}) }}
-                        {{ form_errors(passwordForm.currentPassword) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(passwordForm.newPassword.first, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(passwordForm.newPassword.first, {attr: {class: 'form-input'}}) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(passwordForm.newPassword.second, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(passwordForm.newPassword.second, {attr: {class: 'form-input'}}) }}
-                        {{ form_errors(passwordForm.newPassword) }}
-                    </div>
-
-                    <button type="submit" class="btn btn--primary btn--block">Save password</button>
-                {{ form_end(passwordForm) }}
-            </section>
-            <section class="card card--wide" aria-labelledby="operation-types-heading">
-                <h2 id="operation-types-heading">Operation types</h2>
-
-                {% if operationTypes is empty %}
-                    <div class="empty-state">
-                        <p>No operation types yet.</p>
-                        <small>Add the first one below, e.g. PIX, TED or boleto.</small>
-                    </div>
-                {% else %}
-                    <ul class="type-list">
-                        {% for operationType in operationTypes %}
-                            <li class="type-list__row">
-                                <span class="type-list__name">{{ operationType.type }}</span>
-                                <span class="op-badge op-badge--{{ operationType.operation.value|lower }}">{{ operationType.operation.labels }}</span>
-                                <a class="type-list__edit" href="{{ path('app_settings_operation_type_edit', {id: operationType.id}) }}">Edit</a>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {{ form_start(operationTypeForm, {attr: {class: 'settings-form settings-form--inline', novalidate: 'novalidate'}}) }}
-                    <div class="form-field">
-                        {{ form_label(operationTypeForm.type, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(operationTypeForm.type, {attr: {class: 'form-input'}}) }}
-                        {{ form_errors(operationTypeForm.type) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(operationTypeForm.operation, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(operationTypeForm.operation, {attr: {class: 'form-input'}}) }}
-                        {{ form_errors(operationTypeForm.operation) }}
-                    </div>
-
-                    <button type="submit" class="btn btn--primary">Add</button>
-                {{ form_end(operationTypeForm) }}
-            </section>
+            <a class="card settings-hub__card" href="{{ path('app_settings_tickers') }}">
+                <h2>Tickers</h2>
+                <p class="settings-hub__desc">
+                    The securities you track.
+                    <span class="settings-hub__count">{{ tickerCount }} {{ tickerCount == 1 ? 'ticker' : 'tickers' }}</span>
+                </p>
+            </a>
         </div>
 {% endblock %}

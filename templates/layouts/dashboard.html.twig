@@ -18,7 +18,7 @@
         <nav class="dash-nav" aria-label="Main">
             <a class="dash-nav__item {{ active_nav == 'dashboard' ? 'dash-nav__item--active' }}" href="{{ path('app_home') }}">Dashboard</a>
             <span class="dash-nav__item">Accounts <span class="dash-nav__soon">soon</span></span>
-            <span class="dash-nav__item">Transactions <span class="dash-nav__soon">soon</span></span>
+            <a class="dash-nav__item {{ active_nav == 'transactions' ? 'dash-nav__item--active' }}" href="{{ path('app_transactions') }}">Transactions</a>
             <a class="dash-nav__item {{ active_nav == 'settings' ? 'dash-nav__item--active' }}" href="{{ path('app_settings') }}">Settings</a>
         </nav>
 
