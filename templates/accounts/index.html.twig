@@ -1,0 +1,79 @@
+{# templates/accounts/index.html.twig — list with balances + create #}
+{% extends 'layouts/dashboard.html.twig' %}
+{% set active_nav = 'accounts' %}
+
+{% block title %}Accounts · FinFlow{% endblock %}
+
+{% block dashboard_content %}
+        <header class="dash-header">
+            <h1>Accounts</h1>
+            <p>Your bank and brokerage accounts, in BRL and USD.</p>
+        </header>
+
+        <div class="dash-grid">
+            <section class="card card--wide" aria-labelledby="list-heading">
+                <h2 id="list-heading">All accounts</h2>
+
+                {% if accounts is empty %}
+                    <div class="empty-state">
+                        <p>No accounts yet.</p>
+                        <small>Add your first one below, e.g. Nubank or XP Investimentos.</small>
+                    </div>
+                {% else %}
+                    <ul class="type-list account-list">
+                        {% for account in accounts %}
+                            <li class="type-list__row">
+                                <span class="type-list__name">
+                                    {{ account.name }}
+                                    {% if not account.active %}
+                                        <span class="account-badge account-badge--inactive">Inactive</span>
+                                    {% endif %}
+                                </span>
+                                <span class="account-currency">{{ account.currency.value }}</span>
+                                {% set balance = balances[account.id]|default(0) %}
+                                <span class="account-balance {{ balance < 0 ? 'account-balance--negative' }}">
+                                    {{ account.currency.symbol }}
+                                    {{ balance|number_format(2, ',', '.') }}
+                                </span>
+                                <a class="type-list__edit" href="{{ path('app_accounts_edit', {id: account.id}) }}">Edit</a>
+                                <form class="type-list__delete-form" method="post" action="{{ path('app_accounts_delete', {id: account.id}) }}" onsubmit="return confirm('Remove account {{ account.name }}?');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('delete-account') }}">
+                                    <button type="submit" class="type-list__delete">Remove</button>
+                                </form>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </section>
+
+            <section class="card" aria-labelledby="add-heading">
+                <h2 id="add-heading">Add account</h2>
+
+                {{ form_start(form, {attr: {class: 'settings-form', novalidate: 'novalidate'}}) }}
+                    {# Root-level errors (CSRF, UniqueEntity) attach to the form
+                       itself, not a field, so they render nowhere without this. #}
+                    {{ form_errors(form) }}
+                    <div class="form-field">
+                        {{ form_label(form.name, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.name) }}
+                        {{ form_errors(form.name) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.currency, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.currency) }}
+                        {{ form_errors(form.currency) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.active, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.active) }}
+                        {{ form_errors(form.active) }}
+                    </div>
+
+                    <button type="submit" class="btn btn--primary btn--block">Add account</button>
+                {# Not render_rest: false — that suppresses form_rest(), which is
+                   what emits the CSRF token. Every field above is rendered
+                   explicitly, so form_end() here emits only the token. #}
+                {{ form_end(form) }}
+            </section>
+        </div>
+{% endblock %}

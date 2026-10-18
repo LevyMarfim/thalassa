@@ -16,6 +16,11 @@
 
                 {{ form_start(form, {attr: {class: 'tx-form', novalidate: 'novalidate'}}) }}
                     <div class="form-field">
+                        {{ form_label(form.account, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.account) }}
+                        {{ form_errors(form.account) }}
+                    </div>
+                    <div class="form-field">
                         {{ form_label(form.movement, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.movement) }}
                         {{ form_errors(form.movement) }}
@@ -68,6 +73,7 @@
                         <table class="tx-table">
                             <thead>
                                 <tr>
+                                    <th scope="col">Account</th>
                                     <th scope="col">Movement</th>
                                     <th scope="col">Liquidation</th>
                                     <th scope="col">Operation</th>
@@ -81,6 +87,7 @@
                             <tbody>
                                 {% for transaction in transactions %}
                                     <tr>
+                                        <td>{{ transaction.account.name }}</td>
                                         <td>{{ transaction.movement|date('d/m/Y', 'America/Sao_Paulo') }}</td>
                                         <td>{{ transaction.liquidation|date('d/m/Y', 'America/Sao_Paulo') }}</td>
                                         <td>

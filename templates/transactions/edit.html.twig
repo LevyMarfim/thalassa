@@ -16,6 +16,11 @@
 
                 {{ form_start(form, {attr: {class: 'tx-form', novalidate: 'novalidate'}}) }}
                     <div class="form-field">
+                        {{ form_label(form.account, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.account) }}
+                        {{ form_errors(form.account) }}
+                    </div>
+                    <div class="form-field">
                         {{ form_label(form.movement, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.movement) }}
                         {{ form_errors(form.movement) }}

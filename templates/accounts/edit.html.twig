@@ -1,0 +1,48 @@
+{# templates/accounts/edit.html.twig #}
+{% extends 'layouts/dashboard.html.twig' %}
+{% set active_nav = 'accounts' %}
+
+{% block title %}Edit account · FinFlow{% endblock %}
+
+{% block dashboard_content %}
+        <header class="dash-header">
+            <h1>Edit account</h1>
+            <p>Update “{{ account.name }}”.</p>
+        </header>
+
+        <div class="dash-grid">
+            <section class="card" aria-labelledby="edit-heading">
+                <h2 id="edit-heading">Account</h2>
+
+                {{ form_start(form, {attr: {class: 'settings-form', novalidate: 'novalidate'}}) }}
+                    {# Root-level errors (CSRF, UniqueEntity) attach to the form
+                       itself, not a field, so they render nowhere without this. #}
+                    {{ form_errors(form) }}
+                    <div class="form-field">
+                        {{ form_label(form.name, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.name) }}
+                        {{ form_errors(form.name) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.currency, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.currency) }}
+                        {{ form_errors(form.currency) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.active, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.active) }}
+                        {{ form_errors(form.active) }}
+                    </div>
+
+                    <button type="submit" class="btn btn--primary btn--block">Save changes</button>
+                {# Not render_rest: false — that suppresses form_rest(), which is
+                   what emits the CSRF token. Every field above is rendered
+                   explicitly, so form_end() here emits only the token. #}
+                {{ form_end(form) }}
+
+                <p class="card__back">
+                    <a href="{{ path('app_accounts') }}">← Back to accounts</a>
+                </p>
+            </section>
+        </div>
+{% endblock %}

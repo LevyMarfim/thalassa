@@ -57,6 +57,16 @@ class Transaction
     #[ORM\ManyToOne(inversedBy: 'transactions')]
     private ?Ticker $ticker = null;
 
+    /**
+     * Which account the money moved in. Owning side, unidirectional like $user.
+     * Backfilled in the migration that introduced it: every pre-existing row was
+     * assigned to a "Default" account for its owner, so this can be NOT NULL.
+     */
+    #[ORM\ManyToOne(inversedBy: 'transactions')]
+    #[ORM\JoinColumn(nullable: false)]
+    #[Assert\NotBlank]
+    private ?Account $account = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -167,6 +177,18 @@ class Transaction
     public function setTicker(?Ticker $ticker): static
     {
         $this->ticker = $ticker;
+
+        return $this;
+    }
+
+    public function getAccount(): ?Account
+    {
+        return $this->account;
+    }
+
+    public function setAccount(?Account $account): static
+    {
+        $this->account = $account;
 
         return $this;
     }

@@ -38,10 +38,34 @@
 
             <section class="card" aria-labelledby="accounts-heading">
                 <h2 id="accounts-heading">Accounts</h2>
-                <div class="empty-state">
-                    <p>No accounts yet.</p>
-                    <small>Your BRL and USD accounts will appear here.</small>
-                </div>
+                {% if accounts is empty %}
+                    <div class="empty-state">
+                        <p>No accounts yet.</p>
+                        <small>Your BRL and USD accounts will appear here.</small>
+                    </div>
+                {% else %}
+                    <ul class="type-list account-list">
+                        {% for account in accounts %}
+                            <li class="type-list__row">
+                                <span class="type-list__name">
+                                    {{ account.name }}
+                                    {% if not account.active %}
+                                        <span class="account-badge account-badge--inactive">Inactive</span>
+                                    {% endif %}
+                                </span>
+                                <span class="account-currency">{{ account.currency.value }}</span>
+                                {% set balance = balances[account.id]|default(0) %}
+                                <span class="account-balance {{ balance < 0 ? 'account-balance--negative' }}">
+                                    {{ account.currency.symbol }}
+                                    {{ balance|number_format(2, ',', '.') }}
+                                </span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    <p class="card__back">
+                        <a href="{{ path('app_accounts') }}">Manage accounts →</a>
+                    </p>
+                {% endif %}
             </section>
 
             <section class="card card--wide" aria-labelledby="activity-heading">

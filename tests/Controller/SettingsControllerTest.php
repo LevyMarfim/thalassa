@@ -47,6 +47,13 @@ final class SettingsControllerTest extends WebTestCase
     {
         $client = static::createClient();
         $client->loginUser($this->createUser());
+
+        // The test database is shared and other test classes also create these
+        // fixtures, so measure a baseline instead of asserting an absolute
+        // number that drifts depending on which tests ran first.
+        $typeBaseline = $this->countOperationTypes();
+        $tickerBaseline = $this->countTickers();
+
         $this->createOperationType($this->uniqueOperationType('PIX'));
         $this->createTicker('PETR');
         $this->createTicker('VALE');
@@ -54,8 +61,14 @@ final class SettingsControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/settings');
 
         // Scoping to each card, because the count differs per section.
-        self::assertStringContainsString('1 type', $crawler->filter('a[href="/settings/operation-types"]')->text());
-        self::assertStringContainsString('2 tickers', $crawler->filter('a[href="/settings/tickers"]')->text());
+        self::assertStringContainsString(
+            sprintf('%d %s', $typeBaseline + 1, 1 === $typeBaseline + 1 ? 'type' : 'types'),
+            $crawler->filter('a[href="/settings/operation-types"]')->text()
+        );
+        self::assertStringContainsString(
+            sprintf('%d %s', $tickerBaseline + 2, 1 === $tickerBaseline + 2 ? 'ticker' : 'tickers'),
+            $crawler->filter('a[href="/settings/tickers"]')->text()
+        );
     }
 
     public function testAccountPageShowsBothForms(): void

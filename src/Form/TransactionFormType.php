@@ -3,10 +3,13 @@
 
 namespace App\Form;
 
+use App\Entity\Account;
 use App\Entity\OperationType;
 use App\Entity\Ticker;
 use App\Entity\Transaction;
+use App\Entity\User;
 use App\Enum\OperationEnum;
+use App\Repository\AccountRepository;
 use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\DateType;
@@ -22,7 +25,27 @@ final class TransactionFormType extends AbstractType
 {
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
+        $user = $options['data'] instanceof Transaction ? $options['data']->getUser() : null;
+
         $builder
+            ->add('account', EntityType::class, [
+                'class' => Account::class,
+                'label' => 'Account',
+                'choice_label' => 'name',
+                'placeholder' => 'Select…',
+                'attr' => ['class' => 'form-input'],
+                // Scoped to the owner: an unscoped EntityType would list every
+                // user's accounts in this dropdown.
+                'query_builder' => static function (AccountRepository $repository) use ($user) {
+                    $qb = $repository->createQueryBuilder('a')->orderBy('a.name', 'ASC');
+                    if ($user instanceof User) {
+                        $qb->andWhere('a.user = :user')->setParameter('user', $user);
+                    }
+
+                    return $qb;
+                },
+                'constraints' => [new NotBlank(message: 'Please choose an account.')],
+            ])
             ->add('movement', DateType::class, [
                 'label' => 'Movement date',
                 'widget' => 'single_text',

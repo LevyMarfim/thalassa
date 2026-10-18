@@ -2,10 +2,12 @@
 
 namespace App\Tests\Controller;
 
+use App\Entity\Account;
 use App\Entity\OperationType;
 use App\Entity\Ticker;
 use App\Entity\Transaction;
 use App\Entity\User;
+use App\Enum\CurrencyEnum;
 use App\Enum\OperationEnum;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -83,6 +85,7 @@ final class TransactionControllerTest extends WebTestCase
 
         $crawler = $client->request('GET', '/transactions');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
+            'transaction_form[account]' => (string) $data['account']->getId(),
             'transaction_form[movement]' => '2026-10-20',
             'transaction_form[liquidation]' => '2026-10-22',
             'transaction_form[operation]' => 'CREDIT',
@@ -113,6 +116,7 @@ final class TransactionControllerTest extends WebTestCase
 
         $crawler = $client->request('GET', '/transactions');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
+            'transaction_form[account]' => (string) $data['account']->getId(),
             'transaction_form[movement]' => '2026-10-20',
             'transaction_form[liquidation]' => '2026-10-22',
             'transaction_form[operation]' => 'DEBIT',
@@ -285,7 +289,7 @@ final class TransactionControllerTest extends WebTestCase
     /**
      * Seeds the shared operation type + ticker that transactions point at.
      *
-     * @return array{operationType: OperationType, ticker: Ticker}
+     * @return array{operationType: OperationType, ticker: Ticker, account: Account}
      */
     private function seedTransactionData(): array
     {
@@ -297,28 +301,61 @@ final class TransactionControllerTest extends WebTestCase
         $ticker = new Ticker();
         $ticker->setTicker(sprintf('T%s', strtoupper(substr(uniqid(), -6))));
 
+        // account_id is NOT NULL, and transactions must belong to their owner.
+        // Re-fetch the user: createUser() clears the EM, which detaches it, and
+        // a detached reference looks like an unmanaged new entity to persist().
+        $owner = $em->getRepository(User::class)->find($this->currentUser?->getId());
+        \assert($owner instanceof User);
+        $account = new Account();
+        $account->setUser($owner);
+        $account->setName(sprintf('ACC%s', strtoupper(substr(uniqid(), -6))));
+        $account->setCurrency(CurrencyEnum::BRL);
+
         $em->persist($operationType);
         $em->persist($ticker);
+        $em->persist($account);
         $em->flush();
         $em->clear();
 
-        return ['operationType' => $operationType, 'ticker' => $ticker];
+        return ['operationType' => $operationType, 'ticker' => $ticker, 'account' => $account];
     }
 
     private function createTransaction(string $description, float $totalPrice, ?User $owner = null): Transaction
     {
         $em = $this->entityManager();
 
-        // Re-fetch the shared fixtures (the EM was cleared, which detaches
-        // everything) so every reference below is a managed entity.
-        $operationType = $em->getRepository(OperationType::class)->findOneBy([], ['id' => 'DESC']);
-        $ticker = $em->getRepository(Ticker::class)->findOneBy([], ['id' => 'DESC']);
-
         $user = $em->getRepository(User::class)->find(($owner ?? $this->currentUser)?->getId());
         \assert($user instanceof User);
 
+        // An account must exist for whoever owns this row. The isolation tests
+        // create a second user who has none yet, so mint one rather than
+        // assuming the current user's account can be reused. This may clear the
+        // EM, so it must run before the fixtures are fetched below.
+        $account = $em->getRepository(Account::class)->findOneBy(['user' => $user]);
+        if (!$account instanceof Account) {
+            $account = new Account();
+            $account->setUser($user);
+            $account->setName(sprintf('ACC%s', strtoupper(substr(uniqid(), -6))));
+            $account->setCurrency(CurrencyEnum::BRL);
+            $em->persist($account);
+            $em->flush();
+            $em->clear();
+
+            // Re-fetch after the clear: both references must stay managed.
+            $user = $em->getRepository(User::class)->find($user->getId());
+            \assert($user instanceof User);
+            $account = $em->getRepository(Account::class)->findOneBy(['user' => $user]);
+        }
+        \assert($account instanceof Account);
+
+        // Re-fetch the shared fixtures (the EM may have been cleared, which
+        // detaches everything) so every reference below is a managed entity.
+        $operationType = $em->getRepository(OperationType::class)->findOneBy([], ['id' => 'DESC']);
+        $ticker = $em->getRepository(Ticker::class)->findOneBy([], ['id' => 'DESC']);
+
         $transaction = new Transaction();
         $transaction->setUser($user);
+        $transaction->setAccount($account);
         $transaction->setMovement(new \DateTime('2026-10-15'));
         $transaction->setLiquidation(new \DateTime('2026-10-17'));
         $transaction->setOperation(OperationEnum::DEBIT);
