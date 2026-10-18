@@ -1,0 +1,35 @@
+{# templates/settings/ticker_edit.html.twig #}
+{% extends 'layouts/dashboard.html.twig' %}
+{% set active_nav = 'settings' %}
+{% set settings_section = 'tickers' %}
+
+{% block title %}Edit ticker · FinFlow{% endblock %}
+
+{% block dashboard_content %}
+        <header class="dash-header">
+            <h1>Edit ticker</h1>
+            <p>Update the symbol for “{{ ticker.ticker }}”.</p>
+        </header>
+
+        {% include 'settings/_nav.html.twig' %}
+
+        <div class="dash-grid">
+            <section class="card" aria-labelledby="edit-heading">
+                <h2 id="edit-heading">Ticker</h2>
+
+                {{ form_start(form, {attr: {class: 'settings-form', novalidate: 'novalidate'}}) }}
+                    <div class="form-field">
+                        {{ form_label(form.ticker, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.ticker, {attr: {class: 'form-input'}}) }}
+                        {{ form_errors(form.ticker) }}
+                    </div>
+
+                    <button type="submit" class="btn btn--primary btn--block">Save changes</button>
+                {{ form_end(form) }}
+
+                <p class="card__back">
+                    <a href="{{ path('app_settings_tickers') }}">← Back to tickers</a>
+                </p>
+            </section>
+        </div>
+{% endblock %}

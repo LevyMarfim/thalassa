@@ -16,6 +16,27 @@ class OperationTypeRepository extends ServiceEntityRepository
         parent::__construct($registry, OperationType::class);
     }
 
+    /**
+     * Used by UniqueEntity (repositoryMethod) so duplicates are rejected as a
+     * clean 422 before the DB unique index on LOWER(TRIM(type)) is reached.
+     * The shape must mirror that index exactly, or the form and the database
+     * would disagree about what counts as a duplicate.
+     */
+    public function findOneByTypeIgnoreCase(array $criteria): ?OperationType
+    {
+        $type = $criteria['type'] ?? null;
+        if (!\is_string($type) || '' === trim($type)) {
+            return null;
+        }
+
+        return $this->createQueryBuilder('o')
+            ->andWhere('LOWER(TRIM(o.type)) = LOWER(:type)')
+            ->setParameter('type', trim($type))
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
 //    /**
 //     * @return OperationType[] Returns an array of OperationType objects
 //     */

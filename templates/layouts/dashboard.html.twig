@@ -1,0 +1,44 @@
+{# templates/layouts/dashboard.html.twig — shared authenticated app shell #}
+{% extends 'base.html.twig' %}
+{% set active_nav = active_nav|default('dashboard') %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('styles/dashboard.css') }}">
+{% endblock %}
+
+{% block body %}
+<div class="dash">
+    <aside class="dash-sidebar">
+        <div class="dash-brand">
+            <span class="dash-brand__logo">{{ include('components/_logo.svg') }}</span>
+            <span>FinFlow</span>
+        </div>
+
+        <nav class="dash-nav" aria-label="Main">
+            <a class="dash-nav__item {{ active_nav == 'dashboard' ? 'dash-nav__item--active' }}" href="{{ path('app_home') }}">Dashboard</a>
+            <span class="dash-nav__item">Accounts <span class="dash-nav__soon">soon</span></span>
+            <a class="dash-nav__item {{ active_nav == 'transactions' ? 'dash-nav__item--active' }}" href="{{ path('app_transactions') }}">Transactions</a>
+            <a class="dash-nav__item {{ active_nav == 'settings' ? 'dash-nav__item--active' }}" href="{{ path('app_settings') }}">Settings</a>
+        </nav>
+
+        <div class="dash-user">
+            <span class="dash-user__avatar" aria-hidden="true">{{ app.user.username|first }}</span>
+            <div class="dash-user__info">
+                <div class="dash-user__name">{{ app.user.username }}</div>
+                <a class="dash-user__logout" href="{{ path('app_logout') }}">Log out</a>
+            </div>
+        </div>
+    </aside>
+
+    <main class="dash-main">
+        {% for label, messages in app.flashes %}
+            {% for message in messages %}
+                <div class="alert alert--{{ label }}" role="status">{{ message }}</div>
+            {% endfor %}
+        {% endfor %}
+
+        {% block dashboard_content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}

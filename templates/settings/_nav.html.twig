@@ -1,0 +1,11 @@
+{# templates/settings/_nav.html.twig — sub-navigation shared by every settings page #}
+{% set settings_section = settings_section|default('account') %}
+
+<nav class="settings-nav" aria-label="Settings sections">
+    <a class="settings-nav__item {{ settings_section == 'account' ? 'settings-nav__item--active' }}"
+       href="{{ path('app_settings_account') }}">Account</a>
+    <a class="settings-nav__item {{ settings_section == 'operation-types' ? 'settings-nav__item--active' }}"
+       href="{{ path('app_settings_operation_types') }}">Operation types</a>
+    <a class="settings-nav__item {{ settings_section == 'tickers' ? 'settings-nav__item--active' }}"
+       href="{{ path('app_settings_tickers') }}">Tickers</a>
+</nav>

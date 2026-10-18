@@ -1,0 +1,54 @@
+{# templates/settings/account.html.twig — email + password #}
+{% extends 'layouts/dashboard.html.twig' %}
+{% set active_nav = 'settings' %}
+{% set settings_section = 'account' %}
+
+{% block title %}Account settings · FinFlow{% endblock %}
+
+{% block dashboard_content %}
+        <header class="dash-header">
+            <h1>Account</h1>
+            <p>Your email address and password.</p>
+        </header>
+
+        {% include 'settings/_nav.html.twig' %}
+
+        <div class="dash-grid">
+            <section class="card" aria-labelledby="email-heading">
+                <h2 id="email-heading">Email address</h2>
+
+                {{ form_start(emailForm, {attr: {class: 'settings-form', novalidate: 'novalidate'}}) }}
+                    <div class="form-field">
+                        {{ form_label(emailForm.email, 'Email address', {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(emailForm.email, {attr: {class: 'form-input'}}) }}
+                        {{ form_errors(emailForm.email) }}
+                    </div>
+
+                    <button type="submit" class="btn btn--primary btn--block">Save email</button>
+                {{ form_end(emailForm) }}
+            </section>
+
+            <section class="card" aria-labelledby="password-heading">
+                <h2 id="password-heading">Password</h2>
+
+                {{ form_start(passwordForm, {attr: {class: 'settings-form', novalidate: 'novalidate'}}) }}
+                    <div class="form-field">
+                        {{ form_label(passwordForm.currentPassword, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(passwordForm.currentPassword, {attr: {class: 'form-input'}}) }}
+                        {{ form_errors(passwordForm.currentPassword) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(passwordForm.newPassword.first, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(passwordForm.newPassword.first, {attr: {class: 'form-input'}}) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(passwordForm.newPassword.second, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(passwordForm.newPassword.second, {attr: {class: 'form-input'}}) }}
+                        {{ form_errors(passwordForm.newPassword) }}
+                    </div>
+
+                    <button type="submit" class="btn btn--primary btn--block">Save password</button>
+                {{ form_end(passwordForm) }}
+            </section>
+        </div>
+{% endblock %}

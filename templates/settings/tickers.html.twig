@@ -1,0 +1,55 @@
+{# templates/settings/tickers.html.twig — list + create #}
+{% extends 'layouts/dashboard.html.twig' %}
+{% set active_nav = 'settings' %}
+{% set settings_section = 'tickers' %}
+
+{% block title %}Tickers · FinFlow{% endblock %}
+
+{% block dashboard_content %}
+        <header class="dash-header">
+            <h1>Tickers</h1>
+            <p>The securities you track, e.g. PETR4, VALE3 or AAPL.</p>
+        </header>
+
+        {% include 'settings/_nav.html.twig' %}
+
+        <div class="dash-grid">
+            <section class="card card--wide" aria-labelledby="list-heading">
+                <h2 id="list-heading">All tickers</h2>
+
+                {% if tickers is empty %}
+                    <div class="empty-state">
+                        <p>No tickers yet.</p>
+                        <small>Add the first one below, e.g. PETR4, VALE3 or AAPL.</small>
+                    </div>
+                {% else %}
+                    <ul class="type-list ticker-list">
+                        {% for ticker in tickers %}
+                            <li class="type-list__row">
+                                <span class="type-list__name ticker-symbol">{{ ticker.ticker }}</span>
+                                <a class="type-list__edit" href="{{ path('app_settings_ticker_edit', {id: ticker.id}) }}">Edit</a>
+                                <form class="type-list__delete-form" method="post" action="{{ path('app_settings_ticker_delete', {id: ticker.id}) }}" onsubmit="return confirm('Remove ticker {{ ticker.ticker }}?');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('delete-ticker') }}">
+                                    <button type="submit" class="type-list__delete">Remove</button>
+                                </form>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </section>
+
+            <section class="card" aria-labelledby="add-heading">
+                <h2 id="add-heading">Add ticker</h2>
+
+                {{ form_start(form, {attr: {class: 'settings-form', novalidate: 'novalidate'}}) }}
+                    <div class="form-field">
+                        {{ form_label(form.ticker, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.ticker, {attr: {class: 'form-input'}}) }}
+                        {{ form_errors(form.ticker) }}
+                    </div>
+
+                    <button type="submit" class="btn btn--primary btn--block">Add ticker</button>
+                {{ form_end(form) }}
+            </section>
+        </div>
+{% endblock %}

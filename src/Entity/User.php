@@ -12,8 +12,8 @@ use Symfony\Component\Validator\Constraints as Assert;
 // Table is "app_user": "user" is a reserved keyword in PostgreSQL.
 #[ORM\Entity]
 #[ORM\Table(name: 'app_user')]
-#[UniqueEntity(fields: ['email'], message: 'There is already an account with this email.')]
-#[UniqueEntity(fields: ['username'], message: 'This username is already taken.')]
+#[UniqueEntity(fields: ['email'], message: 'Já existe uma conta com esse e-mail.')]
+#[UniqueEntity(fields: ['username'], message: 'Este nome de usuário já existe.')]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]

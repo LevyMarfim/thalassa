@@ -1,0 +1,35 @@
+{# templates/settings/operation_type_edit.html.twig #}
+{% extends 'layouts/dashboard.html.twig' %}
+{% set active_nav = 'settings' %}
+{% set settings_section = 'operation-types' %}
+
+{% block title %}Edit operation type · FinFlow{% endblock %}
+
+{% block dashboard_content %}
+        <header class="dash-header">
+            <h1>Edit operation type</h1>
+            <p>Rename “{{ operationType.type }}”.</p>
+        </header>
+
+        {% include 'settings/_nav.html.twig' %}
+
+        <div class="dash-grid">
+            <section class="card" aria-labelledby="edit-heading">
+                <h2 id="edit-heading">Operation type</h2>
+
+                {{ form_start(form, {attr: {class: 'settings-form', novalidate: 'novalidate'}}) }}
+                    <div class="form-field">
+                        {{ form_label(form.type, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.type, {attr: {class: 'form-input'}}) }}
+                        {{ form_errors(form.type) }}
+                    </div>
+
+                    <button type="submit" class="btn btn--primary btn--block">Save changes</button>
+                {{ form_end(form) }}
+
+                <p class="card__back">
+                    <a href="{{ path('app_settings_operation_types') }}">← Back to operation types</a>
+                </p>
+            </section>
+        </div>
+{% endblock %}

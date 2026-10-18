@@ -1,0 +1,35 @@
+{# templates/settings/index.html.twig — settings hub, links into each context #}
+{% extends 'layouts/dashboard.html.twig' %}
+{% set active_nav = 'settings' %}
+
+{% block title %}Settings · FinFlow{% endblock %}
+
+{% block dashboard_content %}
+        <header class="dash-header">
+            <h1>Settings</h1>
+            <p>Manage your FinFlow account and data.</p>
+        </header>
+
+        <div class="dash-grid">
+            <a class="card settings-hub__card" href="{{ path('app_settings_account') }}">
+                <h2>Account</h2>
+                <p class="settings-hub__desc">Your email address and password.</p>
+            </a>
+
+            <a class="card settings-hub__card" href="{{ path('app_settings_operation_types') }}">
+                <h2>Operation types</h2>
+                <p class="settings-hub__desc">
+                    How movements are categorised.
+                    <span class="settings-hub__count">{{ operationTypeCount }} {{ operationTypeCount == 1 ? 'type' : 'types' }}</span>
+                </p>
+            </a>
+
+            <a class="card settings-hub__card" href="{{ path('app_settings_tickers') }}">
+                <h2>Tickers</h2>
+                <p class="settings-hub__desc">
+                    The securities you track.
+                    <span class="settings-hub__count">{{ tickerCount }} {{ tickerCount == 1 ? 'ticker' : 'tickers' }}</span>
+                </p>
+            </a>
+        </div>
+{% endblock %}

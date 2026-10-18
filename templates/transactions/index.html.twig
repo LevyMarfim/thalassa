@@ -1,0 +1,112 @@
+{# templates/transactions/index.html.twig #}
+{% extends 'layouts/dashboard.html.twig' %}
+{% set active_nav = 'transactions' %}
+
+{% block title %}Transactions · FinFlow{% endblock %}
+
+{% block dashboard_content %}
+        <header class="dash-header">
+            <h1>Transactions</h1>
+            <p>Your movements in BRL and USD.</p>
+        </header>
+
+        <div class="dash-grid">
+            <section class="card card--wide" aria-labelledby="add-heading">
+                <h2 id="add-heading">New transaction</h2>
+
+                {{ form_start(form, {attr: {class: 'tx-form', novalidate: 'novalidate'}}) }}
+                    <div class="form-field">
+                        {{ form_label(form.movement, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.movement) }}
+                        {{ form_errors(form.movement) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.liquidation, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.liquidation) }}
+                        {{ form_errors(form.liquidation) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.operation, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.operation) }}
+                        {{ form_errors(form.operation) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.operationType, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.operationType) }}
+                        {{ form_errors(form.operationType) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.ticker, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.ticker) }}
+                        {{ form_errors(form.ticker) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.description, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.description, {attr: {class: 'form-input'}}) }}
+                        {{ form_errors(form.description) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.totalPrice, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.totalPrice) }}
+                        {{ form_errors(form.totalPrice) }}
+                    </div>
+
+                    <button type="submit" class="btn btn--primary">Add transaction</button>
+                {{ form_end(form) }}
+            </section>
+
+            <section class="card card--wide" aria-labelledby="list-heading">
+                <h2 id="list-heading">All transactions</h2>
+
+                {% if transactions is empty %}
+                    <div class="empty-state">
+                        <p>No transactions yet.</p>
+                        <small>Add your first one above.</small>
+                    </div>
+                {% else %}
+                    <div class="tx-table-wrap">
+                        <table class="tx-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Movement</th>
+                                    <th scope="col">Liquidation</th>
+                                    <th scope="col">Operation</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">Ticker</th>
+                                    <th scope="col">Description</th>
+                                    <th scope="col" class="tx-table__amount">Total</th>
+                                    <th scope="col"><span class="sr-only">Actions</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for transaction in transactions %}
+                                    <tr>
+                                        <td>{{ transaction.movement|date('d/m/Y', 'America/Sao_Paulo') }}</td>
+                                        <td>{{ transaction.liquidation|date('d/m/Y', 'America/Sao_Paulo') }}</td>
+                                        <td>
+                                            <span class="tx-badge tx-badge--{{ transaction.operation.value|lower }}">
+                                                {{ transaction.operation.labels }}
+                                            </span>
+                                        </td>
+                                        <td>{{ transaction.operationType.type }}</td>
+                                        <td>{% if transaction.ticker %}<span class="ticker-symbol">{{ transaction.ticker.ticker }}</span>{% else %}—{% endif %}</td>
+                                        <td class="tx-table__desc">{{ transaction.description }}</td>
+                                        <td class="tx-table__amount tx-table__amount--{{ transaction.operation.value|lower }}">
+                                            {{ transaction.totalPrice|number_format(2, ',', '.') }}
+                                        </td>
+                                        <td class="tx-table__actions">
+                                            <a class="type-list__edit" href="{{ path('app_transactions_edit', {id: transaction.id}) }}">Edit</a>
+                                            <form class="type-list__delete-form" method="post" action="{{ path('app_transactions_delete', {id: transaction.id}) }}" onsubmit="return confirm('Delete this transaction?');">
+                                                <input type="hidden" name="_token" value="{{ csrf_token('delete-transaction') }}">
+                                                <button type="submit" class="type-list__delete">Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+{% endblock %}
