@@ -226,6 +226,174 @@ span.dash-nav__item { cursor: default; }
 
 .empty-state small { font-size: 0.8rem; }
 
+/* -------------------- Forms -------------------- */
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.form-field { display: flex; flex-direction: column; gap: 6px; }
+
+.form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.form-input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 0.95rem;
+    color: var(--color-text);
+    background: #fff;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.form-input::placeholder { color: #94a3b8; }
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+}
+
+/* Field-level errors rendered by Symfony */
+.form-field ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    color: #ef4444;
+    font-size: 0.82rem;
+}
+
+/* -------------------- Buttons -------------------- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 18px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background .15s ease, transform .05s ease;
+}
+
+.btn--primary {
+    background: var(--color-primary);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.25);
+}
+
+.btn--primary:hover { background: var(--color-primary-dark); }
+.btn--primary:active { transform: translateY(1px); }
+.btn--block { width: 100%; margin-top: 6px; }
+
+/* -------------------- Alerts -------------------- */
+.alert {
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.88rem;
+    line-height: 1.45;
+    margin-bottom: 20px;
+}
+
+.alert--success {
+    background: var(--color-primary-soft);
+    border: 1px solid #a7f3d0;
+    color: var(--color-primary-dark);
+}
+
+.alert--error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+}
+
+/* -------------------- Type list -------------------- */
+.type-list {
+    list-style: none;
+    margin: 0 0 20px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.type-list__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.type-list__name { flex: 1; }
+
+.type-list__row + .type-list__row {
+    border-top: 1px solid var(--color-border);
+}
+
+/* -------------------- Operation badges -------------------- */
+.op-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 3px 10px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+.op-badge--credit {
+    background: var(--color-primary-soft);
+    color: var(--color-primary-dark);
+}
+
+.op-badge--debit {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.type-list__edit {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-primary-dark);
+    text-decoration: none;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.type-list__edit:hover { text-decoration: underline; }
+
+.settings-form--inline {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.settings-form--inline .btn { margin-top: 0; }
+
+.card__back {
+    margin: 20px 0 0;
+    font-size: 0.88rem;
+}
+
+.card__back a {
+    color: var(--color-primary-dark);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.card__back a:hover { text-decoration: underline; }
+
 /* -------------------- Responsive -------------------- */
 @media (max-width: 900px) {
     .dash { grid-template-columns: 1fr; }
