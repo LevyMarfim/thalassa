@@ -64,6 +64,12 @@ class AccountRepository extends ServiceEntityRepository
      * DEBIT subtracts — a single CASE expression, aggregated in SQL rather than
      * hydrating every transaction into PHP.
      *
+     * ABS() matters: totalPrice may be stored either as a positive magnitude or
+     * already signed (the form accepts both — nothing forces a sign). Taking the
+     * magnitude and letting the operation enum supply the direction makes both
+     * encodings agree. Without it, a DEBIT stored as -500 was negated into +500,
+     * silently reversing the sign and inflating the total.
+     *
      * Uses the enum's string backing values rather than the PHP enum cases,
      * because DQL cannot bind an enum case into a comparison.
      *
@@ -74,7 +80,7 @@ class AccountRepository extends ServiceEntityRepository
         $rows = $this->createQueryBuilder('a')
             ->select('a.id AS account_id')
             ->addSelect(
-                'COALESCE(SUM(CASE WHEN t.operation = :credit THEN t.totalPrice ELSE -t.totalPrice END), 0)'
+                'COALESCE(SUM(CASE WHEN t.operation = :credit THEN ABS(t.totalPrice) ELSE -ABS(t.totalPrice) END), 0)'
             )
             ->leftJoin('a.transactions', 't')
             ->andWhere('a.user = :user')

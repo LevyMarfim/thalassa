@@ -53,6 +53,45 @@ final class TransactionControllerTest extends WebTestCase
         self::assertSelectorTextContains('.tx-table', '1.234,56');
     }
 
+    public function testTransactionsPagesSpanFullWidth(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $crawler = $client->request('GET', '/transactions');
+
+        self::assertResponseIsSuccessful();
+        // The block sits inside main's class attribute; a missing leading space
+        // would render "dash-maindash-main--wide" and never match.
+        self::assertCount(1, $crawler->filter('main.dash-main.dash-main--wide'));
+    }
+
+    public function testEditTransactionSpansFullWidth(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+        $transaction = $this->createTransaction($this->uniqueDescription('EDIT'), 10.00);
+        \assert($transaction instanceof Transaction);
+
+        $crawler = $client->request('GET', sprintf('/transactions/%d/edit', $transaction->getId()));
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filter('main.dash-main.dash-main--wide'));
+    }
+
+    public function testDashboardKeepsReadingWidth(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $crawler = $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+        // Opt-in must not leak: the dashboard keeps the 960px cap.
+        self::assertCount(0, $crawler->filter('main.dash-main--wide'));
+    }
+
     public function testIndexDoesNotShowOtherUsersTransactions(): void
     {
         $client = static::createClient();

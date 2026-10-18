@@ -238,6 +238,50 @@ final class AccountControllerTest extends WebTestCase
         self::assertNull($this->findAccount($account->getName()));
     }
 
+    /**
+     * Regression: a DEBIT row stored as a negative totalPrice (-500) was
+     * negated again by the balance query, flipping it to +500 and inflating
+     * the total. The operation enum must be the only source of direction.
+     */
+    public function testBalanceSubtractsNegativeStoredDebit(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $account = $this->createAccount($this->uniqueName('Nubank'));
+
+        $this->attachTransactionTo($account, OperationEnum::CREDIT, 100.00);
+        $this->attachTransactionTo($account, OperationEnum::DEBIT, -500.00);
+
+        // 100 in, 500 out => -400. The old query returned +600.
+        $crawler = $client->request('GET', '/accounts');
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('.account-balance', '-400,00');
+
+        // Same repository call, so the dashboard must agree.
+        $client->request('GET', '/');
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('.account-balance', '-400,00');
+    }
+
+    /**
+     * The opposite encoding: a DEBIT stored as a positive magnitude. Both
+     * spellings must land on the same balance.
+     */
+    public function testBalanceSubtractsPositiveStoredDebit(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $account = $this->createAccount($this->uniqueName('Nubank'));
+
+        $this->attachTransactionTo($account, OperationEnum::CREDIT, 100.00);
+        $this->attachTransactionTo($account, OperationEnum::DEBIT, 500.00);
+
+        $client->request('GET', '/accounts');
+
+        self::assertSelectorTextContains('.account-balance', '-400,00');
+    }
+
     public function testDeleteAccountWithTransactionsIsRefused(): void
     {
         $client = static::createClient();
@@ -331,8 +375,11 @@ final class AccountControllerTest extends WebTestCase
      * Attaches a transaction so the account is no longer empty; deletion must
      * then be refused rather than orphaning the row.
      */
-    private function attachTransactionTo(Account $account): void
-    {
+    private function attachTransactionTo(
+        Account $account,
+        OperationEnum $operation = OperationEnum::CREDIT,
+        float $totalPrice = 100.00,
+    ): void {
         $em = $this->entityManager();
         $em->clear();
 
@@ -350,10 +397,10 @@ final class AccountControllerTest extends WebTestCase
         $transaction->setAccount($managed);
         $transaction->setMovement(new \DateTime('2026-10-15'));
         $transaction->setLiquidation(new \DateTime('2026-10-17'));
-        $transaction->setOperation(OperationEnum::CREDIT);
+        $transaction->setOperation($operation);
         $transaction->setOperationType($operationType);
         $transaction->setDescription(sprintf('TX%s', strtoupper(substr(uniqid(), -6))));
-        $transaction->setTotalPrice(100.00);
+        $transaction->setTotalPrice($totalPrice);
 
         $em->persist($transaction);
         $em->flush();

@@ -151,6 +151,12 @@ span.dash-nav__item { cursor: default; }
     max-width: 960px;
 }
 
+/* Opt-in per page: the shell already gives main the full 1fr track, so this
+   only removes the internal reading cap for dense pages (transactions). */
+.dash-main--wide {
+    max-width: none;
+}
+
 .dash-header { margin-bottom: 28px; }
 
 .dash-header h1 {
@@ -514,14 +520,25 @@ span.dash-nav__item { cursor: default; }
     border: 0;
 }
 
+/*
+ * A fixed 2-column grid stretched every input to ~half the card, so dates and
+ * selects sat in far more width than they use. Auto-fit packs the short fields
+ * side by side and lets the wide ones span more columns; it also means the
+ * narrow edit page collapses on its own, with no media query.
+ */
 .tx-form {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
     align-items: start;
 }
 
-.tx-form .btn { grid-column: 1 / -1; }
+/* Spans for the fields that need more than one column of room. */
+.tx-form .form-field--wide { grid-column: span 3; }
+.tx-form .form-field--medium { grid-column: span 2; }
+
+/* Hug the label instead of stretching a full-width bar across the card. */
+.tx-form .btn { justify-self: start; }
 
 .tx-form .form-field:has(.form-errors),
 .tx-form .form-field:has(ul) { align-self: stretch; }
@@ -560,11 +577,18 @@ span.dash-nav__item { cursor: default; }
 
 .tx-table tbody tr:last-child td { border-bottom: none; }
 
+/*
+ * Description is the only column that should flex. Every other cell is
+ * content-sized and nowrap, so without this the leftover table width gets
+ * distributed evenly and the rows read as scattered islands.
+ */
+.tx-table__col--flex { width: 100%; }
+
 .tx-table__desc {
-    max-width: 280px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 420px;
 }
 
 .tx-table__amount {
