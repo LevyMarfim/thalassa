@@ -70,10 +70,39 @@
 
             <section class="card card--wide" aria-labelledby="activity-heading">
                 <h2 id="activity-heading">Recent activity</h2>
-                <div class="empty-state">
-                    <p>No recent activity.</p>
-                    <small>PIX, transfers and bills will show up here once you add an account.</small>
-                </div>
+
+                {% if recentTransactions is empty %}
+                    <div class="empty-state">
+                        <p>No recent activity.</p>
+                        <small>PIX, transfers and bills will show up here once you add a transaction.</small>
+                    </div>
+                {% else %}
+                    <ul class="type-list">
+                        {% for transaction in recentTransactions %}
+                            <li class="type-list__row">
+                                <span class="tx-badge tx-badge--{{ transaction.operation.value|lower }}">
+                                    {{ transaction.operation.labels }}
+                                </span>
+                                <span class="type-list__name">
+                                    {{ transaction.description }}
+                                    <small class="activity-meta">
+                                        {{ transaction.account.name }} ·
+                                        {{ transaction.movement|date('d/m/Y') }}
+                                    </small>
+                                </span>
+                                {# ABS() because the stored sign is not reliable — the operation
+                                   enum is the sole source of direction (see AccountRepository). #}
+                                <span class="account-balance {{ transaction.operation.value|lower == 'debit' ? 'account-balance--negative' }}">
+                                    {{ transaction.account.currency.symbol }}
+                                    {{ (transaction.totalPrice|abs)|number_format(2, ',', '.') }}
+                                </span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    <p class="card__back">
+                        <a href="{{ path('app_transactions') }}">View all transactions →</a>
+                    </p>
+                {% endif %}
             </section>
         </div>
 {% endblock %}

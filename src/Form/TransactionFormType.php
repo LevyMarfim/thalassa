@@ -8,12 +8,14 @@ use App\Entity\OperationType;
 use App\Entity\Ticker;
 use App\Entity\Transaction;
 use App\Entity\User;
+use App\Enum\MarketEnum;
 use App\Enum\OperationEnum;
 use App\Repository\AccountRepository;
 use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\DateType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
+use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\Extension\Core\Type\NumberType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -78,10 +80,56 @@ final class TransactionFormType extends AbstractType
             ->add('ticker', EntityType::class, [
                 'class' => Ticker::class,
                 'label' => 'Ticker',
-                'choice_label' => 'ticker',
+                // Symbol plus name: a bare symbol is meaningless to anyone who
+                // hasn't memorised the tape, and prefixes can collide.
+                'choice_label' => static fn (Ticker $ticker): string => sprintf(
+                    '%s · %s',
+                    $ticker->getTicker(),
+                    $ticker->getName() ?? ''
+                ),
                 'placeholder' => '— None —',
                 'required' => false,
                 'attr' => ['class' => 'form-input'],
+            ])
+            // Optional cost-basis detail. All four are nullable in the entity
+            // and the column, so no NotBlank: an omitted field must map to null
+            // rather than fail validation or throw a TypeError.
+            ->add('amount', IntegerType::class, [
+                'label' => 'Quantity',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-input',
+                    'placeholder' => '0',
+                    'inputmode' => 'numeric',
+                ],
+            ])
+            ->add('unitPrice', NumberType::class, [
+                'label' => 'Unit price',
+                'required' => false,
+                'scale' => 2,
+                'attr' => [
+                    'class' => 'form-input',
+                    'placeholder' => '0.00',
+                    'step' => '0.01',
+                    'inputmode' => 'decimal',
+                ],
+            ])
+            ->add('market', EnumType::class, [
+                'class' => MarketEnum::class,
+                'label' => 'Market',
+                'choice_label' => static fn (MarketEnum $case): string => $case->labels(),
+                'placeholder' => '— None —',
+                'required' => false,
+                'attr' => ['class' => 'form-input'],
+            ])
+            ->add('invoice', IntegerType::class, [
+                'label' => 'Invoice / note',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-input',
+                    'placeholder' => '0',
+                    'inputmode' => 'numeric',
+                ],
             ])
             ->add('description', TextType::class, [
                 'label' => 'Description',

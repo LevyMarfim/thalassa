@@ -8,6 +8,7 @@ use App\Entity\Ticker;
 use App\Entity\Transaction;
 use App\Entity\User;
 use App\Enum\CurrencyEnum;
+use App\Enum\MarketEnum;
 use App\Enum\OperationEnum;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -80,7 +81,7 @@ final class TransactionControllerTest extends WebTestCase
         self::assertCount(1, $crawler->filter('main.dash-main.dash-main--wide'));
     }
 
-    public function testDashboardKeepsReadingWidth(): void
+    public function testDashboardSpansFullWidth(): void
     {
         $client = static::createClient();
         $client->loginUser($this->createUser());
@@ -88,8 +89,8 @@ final class TransactionControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/');
 
         self::assertResponseIsSuccessful();
-        // Opt-in must not leak: the dashboard keeps the 960px cap.
-        self::assertCount(0, $crawler->filter('main.dash-main--wide'));
+        // Full window is the layout default now, so the dashboard spans too.
+        self::assertCount(1, $crawler->filter('main.dash-main.dash-main--wide'));
     }
 
     public function testIndexDoesNotShowOtherUsersTransactions(): void
@@ -170,6 +171,115 @@ final class TransactionControllerTest extends WebTestCase
         $created = $this->findTransaction($description);
         self::assertNotNull($created);
         self::assertNull($created->getTicker());
+    }
+
+    /**
+     * The four cost-basis fields added to Transaction must round-trip through
+     * the form and land in the table. They are all optional, so this test also
+     * pins that supplying them is what persists them — not a side effect.
+     */
+    public function testCreateTransactionPersistsCostBasisFields(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+        $description = $this->uniqueDescription('FRAC');
+
+        $crawler = $client->request('GET', '/transactions');
+        $form = $crawler->filter('form[name="transaction_form"]')->form([
+            'transaction_form[account]' => (string) $data['account']->getId(),
+            'transaction_form[movement]' => '2026-10-20',
+            'transaction_form[liquidation]' => '2026-10-22',
+            'transaction_form[operation]' => 'CREDIT',
+            'transaction_form[operationType]' => (string) $data['operationType']->getId(),
+            'transaction_form[ticker]' => (string) $data['ticker']->getId(),
+            'transaction_form[amount]' => '10',
+            'transaction_form[unitPrice]' => '25.50',
+            'transaction_form[market]' => 'FRACTIONAL',
+            'transaction_form[invoice]' => '123456',
+            'transaction_form[description]' => $description,
+            'transaction_form[totalPrice]' => '255.00',
+        ]);
+        $client->submit($form);
+
+        self::assertResponseRedirects('/transactions');
+        $created = $this->findTransaction($description);
+        self::assertNotNull($created);
+        self::assertSame(10, $created->getAmount());
+        self::assertEqualsWithDelta(25.50, $created->getUnitPrice() ?? 0.0, 0.001);
+        self::assertSame(MarketEnum::FRACTIONAL, $created->getMarket());
+        self::assertSame(123456, $created->getInvoice());
+
+        // And they must render, not just persist.
+        $crawler = $client->request('GET', '/transactions');
+        $row = $crawler->filter('tr')->filter(sprintf('td:contains("%s")', $description))->ancestors()->last();
+        self::assertStringContainsString('Fracionário', $row->html());
+    }
+
+    /**
+     * Omitting the optional cost-basis fields must store NULL rather than
+     * failing validation or defaulting to zero — a zero quantity would be a
+     * real (wrong) fact about the trade, not an absent one.
+     */
+    public function testCostBasisFieldsAreOptional(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+        $description = $this->uniqueDescription('SEMFRAC');
+
+        $crawler = $client->request('GET', '/transactions');
+        $form = $crawler->filter('form[name="transaction_form"]')->form([
+            'transaction_form[account]' => (string) $data['account']->getId(),
+            'transaction_form[movement]' => '2026-10-20',
+            'transaction_form[liquidation]' => '2026-10-22',
+            'transaction_form[operation]' => 'CREDIT',
+            'transaction_form[operationType]' => (string) $data['operationType']->getId(),
+            'transaction_form[ticker]' => '',
+            'transaction_form[description]' => $description,
+            'transaction_form[totalPrice]' => '10.00',
+        ]);
+        $client->submit($form);
+
+        self::assertResponseRedirects('/transactions');
+        $created = $this->findTransaction($description);
+        self::assertNotNull($created);
+        self::assertNull($created->getAmount());
+        self::assertNull($created->getUnitPrice());
+        self::assertNull($created->getMarket());
+        self::assertNull($created->getInvoice());
+    }
+
+    /**
+     * An invalid market must be rejected by the form rather than reaching the
+     * enum coercion (which would be a 500, not a 422).
+     *
+     * Submitted as raw parameters rather than through Crawler::form(): the
+     * crawler validates <option> values against the rendered list and refuses
+     * to build the request at all, so it cannot express this case.
+     */
+    public function testCreateTransactionRejectsUnknownMarket(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+        $before = $this->countTransactions();
+
+        $crawler = $client->request('GET', '/transactions');
+        $form = $crawler->filter('form[name="transaction_form"]')->form();
+
+        // Crawler::ChoiceFormField refuses to hold a value that isn't one of
+        // the rendered <option>s, so the forged value is injected into the
+        // submitted parameters after the form has been read. Everything else —
+        // including the CSRF token — still comes from the rendered form.
+        $params = $form->getPhpValues();
+        $params['transaction_form']['market'] = 'NOT_A_MARKET';
+        $params['transaction_form']['description'] = $this->uniqueDescription('MAU');
+
+        $client->request('POST', $form->getUri(), $params);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame($before, $this->countTransactions());
     }
 
     public function testCreateTransactionRejectsBlankRequiredFields(): void
@@ -339,6 +449,8 @@ final class TransactionControllerTest extends WebTestCase
 
         $ticker = new Ticker();
         $ticker->setTicker(sprintf('T%s', strtoupper(substr(uniqid(), -6))));
+        // name is NOT NULL, so the fixture needs one or the INSERT fails.
+        $ticker->setName(sprintf('Name %s', $ticker->getTicker()));
 
         // account_id is NOT NULL, and transactions must belong to their owner.
         // Re-fetch the user: createUser() clears the EM, which detaches it, and

@@ -8,7 +8,7 @@
 {% block dashboard_content %}
         <header class="dash-header">
             <h1>Edit ticker</h1>
-            <p>Update the symbol for “{{ ticker.ticker }}”.</p>
+            <p>Update “{{ ticker.ticker }}”.</p>
         </header>
 
         {% include 'settings/_nav.html.twig' %}
@@ -22,6 +22,11 @@
                         {{ form_label(form.ticker, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.ticker, {attr: {class: 'form-input'}}) }}
                         {{ form_errors(form.ticker) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.name, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.name, {attr: {class: 'form-input'}}) }}
+                        {{ form_errors(form.name) }}
                     </div>
 
                     <button type="submit" class="btn btn--primary btn--block">Save changes</button>

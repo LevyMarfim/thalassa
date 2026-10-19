@@ -17,6 +17,22 @@ class OperationTypeRepository extends ServiceEntityRepository
     }
 
     /**
+     * app_transaction.operation_type_id is NOT NULL with a NO ACTION FK, so a
+     * type in use physically cannot be deleted. Counting first turns what would
+     * be a raw 500 from the database into a message the user can act on.
+     */
+    public function countTransactions(OperationType $operationType): int
+    {
+        return (int) $this->createQueryBuilder('o')
+            ->select('COUNT(t.id)')
+            ->innerJoin('o.transactions', 't')
+            ->andWhere('o = :operationType')
+            ->setParameter('operationType', $operationType)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
      * Used by UniqueEntity (repositoryMethod) so duplicates are rejected as a
      * clean 422 before the DB unique index on LOWER(TRIM(type)) is reached.
      * The shape must mirror that index exactly, or the form and the database

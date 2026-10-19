@@ -148,11 +148,15 @@ span.dash-nav__item { cursor: default; }
 /* -------------------- Main -------------------- */
 .dash-main {
     padding: 32px 36px;
+    /* Reading cap. Only reached by pages that override the main_class block
+       empty; the default class below removes it. */
     max-width: 960px;
 }
 
-/* Opt-in per page: the shell already gives main the full 1fr track, so this
-   only removes the internal reading cap for dense pages (transactions). */
+/* Default: the shell already gives main the full 1fr track, so this only
+   removes the internal reading cap — letting every dashboard page span the
+   whole window. A page opts back into the cap by overriding the main_class
+   block in the layout to render nothing. */
 .dash-main--wide {
     max-width: none;
 }
@@ -341,6 +345,14 @@ span.dash-nav__item { cursor: default; }
 }
 
 .type-list__name { flex: 1; }
+
+/* Second line under a recent-activity description: account + date. */
+.activity-meta {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
 
 .type-list__row + .type-list__row {
     border-top: 1px solid var(--color-border);
@@ -618,6 +630,13 @@ span.dash-nav__item { cursor: default; }
     padding: 3px 10px;
     border-radius: 999px;
     white-space: nowrap;
+}
+
+/* Market is descriptive, not directional, so it gets a neutral grey pill
+   rather than the credit/debit colours. */
+.tx-badge--market {
+    background: #f1f5f9;
+    color: #475569;
 }
 
 .tx-badge--credit {

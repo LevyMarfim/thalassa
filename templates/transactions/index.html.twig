@@ -4,9 +4,6 @@
 
 {% block title %}Transactions · FinFlow{% endblock %}
 
-{# Sits inside <main>'s class attribute, so the leading space separates it. #}
-{% block main_class %} dash-main--wide{% endblock %}
-
 {% block dashboard_content %}
         <header class="dash-header">
             <h1>Transactions</h1>
@@ -48,6 +45,26 @@
                         {{ form_widget(form.ticker) }}
                         {{ form_errors(form.ticker) }}
                     </div>
+                    <div class="form-field">
+                        {{ form_label(form.amount, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.amount) }}
+                        {{ form_errors(form.amount) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.unitPrice, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.unitPrice) }}
+                        {{ form_errors(form.unitPrice) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.market, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.market) }}
+                        {{ form_errors(form.market) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.invoice, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.invoice) }}
+                        {{ form_errors(form.invoice) }}
+                    </div>
                     <div class="form-field form-field--wide">
                         {{ form_label(form.description, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.description, {attr: {class: 'form-input'}}) }}
@@ -82,6 +99,10 @@
                                     <th scope="col">Operation</th>
                                     <th scope="col">Type</th>
                                     <th scope="col">Ticker</th>
+                                    <th scope="col" class="tx-table__amount">Qty</th>
+                                    <th scope="col" class="tx-table__amount">Unit price</th>
+                                    <th scope="col">Market</th>
+                                    <th scope="col">Invoice</th>
                                     <th scope="col" class="tx-table__col--flex">Description</th>
                                     <th scope="col" class="tx-table__amount">Total</th>
                                     <th scope="col"><span class="sr-only">Actions</span></th>
@@ -99,7 +120,11 @@
                                             </span>
                                         </td>
                                         <td>{{ transaction.operationType.type }}</td>
-                                        <td>{% if transaction.ticker %}<span class="ticker-symbol">{{ transaction.ticker.ticker }}</span>{% else %}—{% endif %}</td>
+                                        <td>{% if transaction.ticker %}<span class="ticker-symbol">{{ transaction.ticker.ticker }}</span><small class="activity-meta">{{ transaction.ticker.name }}</small>{% else %}—{% endif %}</td>
+                                        <td class="tx-table__amount">{{ transaction.amount is not null ? transaction.amount : '—' }}</td>
+                                        <td class="tx-table__amount">{{ transaction.unitPrice is not null ? transaction.unitPrice|number_format(2, ',', '.') : '—' }}</td>
+                                        <td>{% if transaction.market %}<span class="tx-badge tx-badge--market">{{ transaction.market.labels }}</span>{% else %}—{% endif %}</td>
+                                        <td>{{ transaction.invoice ?? '—' }}</td>
                                         <td class="tx-table__desc">{{ transaction.description }}</td>
                                         <td class="tx-table__amount tx-table__amount--{{ transaction.operation.value|lower }}">
                                             {{ transaction.totalPrice|number_format(2, ',', '.') }}

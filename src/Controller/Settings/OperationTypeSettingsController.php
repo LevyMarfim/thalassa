@@ -61,4 +61,40 @@ final class OperationTypeSettingsController extends AbstractController
             'form' => $form,
         ]);
     }
+
+    #[Route('/{id}/delete', name: 'app_settings_operation_type_delete', methods: ['POST'])]
+    public function delete(
+        Request $request,
+        OperationType $operationType,
+        EntityManagerInterface $entityManager,
+        OperationTypeRepository $operationTypeRepository,
+    ): Response {
+        if (!$this->isCsrfTokenValid('delete-operation-type', $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token.');
+        }
+
+        // Deletion must be refused rather than attempted: operation_type_id is
+        // NOT NULL with a NO ACTION FK, so Doctrine would hand the database an
+        // insert-or-delete it must reject — surfacing as a raw 500. Cascading
+        // instead would erase the ledger rows that reference the type, which is
+        // never acceptable for financial history.
+        $inUse = $operationTypeRepository->countTransactions($operationType);
+        if ($inUse > 0) {
+            $this->addFlash('error', sprintf(
+                '“%s” is used by %d transaction%s and cannot be removed. Recategorise %s first.',
+                $operationType->getType(),
+                $inUse,
+                1 === $inUse ? '' : 's',
+                1 === $inUse ? 'it' : 'them'
+            ));
+
+            return $this->redirectToRoute('app_settings_operation_types');
+        }
+
+        $entityManager->remove($operationType);
+        $entityManager->flush();
+        $this->addFlash('success', 'Operation type removed.');
+
+        return $this->redirectToRoute('app_settings_operation_types');
+    }
 }

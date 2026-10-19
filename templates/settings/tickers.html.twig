@@ -26,7 +26,8 @@
                     <ul class="type-list ticker-list">
                         {% for ticker in tickers %}
                             <li class="type-list__row">
-                                <span class="type-list__name ticker-symbol">{{ ticker.ticker }}</span>
+                                <span class="ticker-symbol">{{ ticker.ticker }}</span>
+                                <span class="type-list__name">{{ ticker.name }}</span>
                                 <a class="type-list__edit" href="{{ path('app_settings_ticker_edit', {id: ticker.id}) }}">Edit</a>
                                 <form class="type-list__delete-form" method="post" action="{{ path('app_settings_ticker_delete', {id: ticker.id}) }}" onsubmit="return confirm('Remove ticker {{ ticker.ticker }}?');">
                                     <input type="hidden" name="_token" value="{{ csrf_token('delete-ticker') }}">
@@ -46,6 +47,11 @@
                         {{ form_label(form.ticker, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.ticker, {attr: {class: 'form-input'}}) }}
                         {{ form_errors(form.ticker) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.name, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.name, {attr: {class: 'form-input'}}) }}
+                        {{ form_errors(form.name) }}
                     </div>
 
                     <button type="submit" class="btn btn--primary btn--block">Add ticker</button>

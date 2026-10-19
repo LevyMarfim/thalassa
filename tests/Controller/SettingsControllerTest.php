@@ -2,9 +2,13 @@
 
 namespace App\Tests\Controller;
 
+use App\Entity\Account;
 use App\Entity\OperationType;
 use App\Entity\Ticker;
+use App\Entity\Transaction;
 use App\Entity\User;
+use App\Enum\CurrencyEnum;
+use App\Enum\OperationEnum;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -443,6 +447,7 @@ final class SettingsControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/settings/tickers');
         $form = $crawler->filter('form[name="ticker_form"]')->form([
             'ticker_form[ticker]' => strtolower($symbol),
+            'ticker_form[name]' => 'Petróleo Brasileiro',
         ]);
         $client->submit($form);
 
@@ -450,6 +455,7 @@ final class SettingsControllerTest extends WebTestCase
         $client->followRedirect();
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('.ticker-list', $symbol);
+        self::assertSelectorTextContains('.ticker-list', 'Petróleo Brasileiro');
 
         // Normalized to uppercase so petr4 / PETR4 cannot both exist.
         self::assertNotNull($this->findTicker($symbol));
@@ -466,6 +472,9 @@ final class SettingsControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/settings/tickers');
         $form = $crawler->filter('form[name="ticker_form"]')->form([
             'ticker_form[ticker]' => $symbol,
+            // Valid name: this test must fail on the duplicate symbol, not on
+            // a missing required field.
+            'ticker_form[name]' => 'Some Company',
         ]);
         $client->submit($form);
 
@@ -482,6 +491,7 @@ final class SettingsControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/settings/tickers');
         $form = $crawler->filter('form[name="ticker_form"]')->form([
             'ticker_form[ticker]' => 'not a ticker!',
+            'ticker_form[name]' => 'Some Company',
         ]);
         $client->submit($form);
 
@@ -498,11 +508,65 @@ final class SettingsControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/settings/tickers');
         $form = $crawler->filter('form[name="ticker_form"]')->form([
             'ticker_form[ticker]' => '',
+            'ticker_form[name]' => 'Some Company',
         ]);
         $client->submit($form);
 
         self::assertResponseIsUnprocessable();
         self::assertSame($before, $this->countTickers());
+    }
+
+    /**
+     * name is NOT NULL, so a blank one must be rejected as a 422 rather than
+     * stored as an empty string by a column with no default.
+     */
+    public function testCreateTickerRejectsBlankName(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $symbol = $this->uniqueSymbol('NOME');
+        $before = $this->countTickers();
+
+        $crawler = $client->request('GET', '/settings/tickers');
+        $form = $crawler->filter('form[name="ticker_form"]')->form([
+            'ticker_form[ticker]' => $symbol,
+            'ticker_form[name]' => '',
+        ]);
+        $client->submit($form);
+
+        self::assertResponseIsUnprocessable();
+        self::assertSame($before, $this->countTickers());
+        self::assertNull($this->findTicker($symbol));
+    }
+
+    /**
+     * The name is part of the record, so editing it must persist — otherwise
+     * the field would render and silently never save.
+     */
+    public function testEditTickerNamePersists(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $ticker = $this->createTicker('PETR');
+
+        $crawler = $client->request('GET', sprintf('/settings/tickers/%d/edit', $ticker->getId()));
+        self::assertResponseIsSuccessful();
+        // Prefilled with the existing name, not blank.
+        self::assertSame(
+            $ticker->getName(),
+            $crawler->filter('input[name="ticker_form[name]"]')->attr('value')
+        );
+
+        $form = $crawler->filter('form[name="ticker_form"]')->form([
+            'ticker_form[name]' => 'Renamed Company',
+        ]);
+        $client->submit($form);
+
+        self::assertResponseRedirects('/settings/tickers');
+        $entityManager = static::getContainer()->get(EntityManagerInterface::class);
+        $entityManager->clear();
+        $reloaded = $entityManager->getRepository(Ticker::class)->find($ticker->getId());
+        self::assertSame('Renamed Company', $reloaded?->getName());
     }
 
     public function testEditTickerPageRenders(): void
@@ -527,6 +591,9 @@ final class SettingsControllerTest extends WebTestCase
         $crawler = $client->request('GET', sprintf('/settings/tickers/%d/edit', $ticker->getId()));
         $form = $crawler->filter('form[name="ticker_form"]')->form([
             'ticker_form[ticker]' => strtolower($newSymbol),
+            // Crawler::form() clears omitted fields, so name must be resent
+            // or this would fail on the blanked name.
+            'ticker_form[name]' => $ticker->getName(),
         ]);
         $client->submit($form);
 
@@ -545,6 +612,9 @@ final class SettingsControllerTest extends WebTestCase
         $crawler = $client->request('GET', sprintf('/settings/tickers/%d/edit', $ticker->getId()));
         $form = $crawler->filter('form[name="ticker_form"]')->form([
             'ticker_form[ticker]' => $taken,
+            // Valid name, so a 422 here proves the duplicate symbol was caught
+            // rather than the blanked name.
+            'ticker_form[name]' => 'Some Company',
         ]);
         $client->submit($form);
 
@@ -603,6 +673,85 @@ final class SettingsControllerTest extends WebTestCase
         self::assertNotNull($this->findTicker($ticker->getTicker()));
     }
 
+    /**
+     * The reason this section previously had no delete: app_transaction.
+     * operation_type_id is NOT NULL with a NO ACTION FK. Removing an unused
+     * type must work; removing one in use must refuse with a message instead
+     * of letting Doctrine surface a raw 500 from the database.
+     */
+    public function testDeleteOperationTypeSuccess(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $type = $this->createOperationType($this->uniqueOperationType('SOLTO'));
+
+        // Submit the delete form exactly as rendered (it carries the CSRF token).
+        $crawler = $client->request('GET', '/settings/operation-types');
+        $form = $crawler->filter(sprintf('form[action="/settings/operation-types/%d/delete"]', $type->getId()))->form();
+        $client->submit($form);
+
+        self::assertResponseRedirects('/settings/operation-types');
+        self::assertNull($this->findOperationType($type->getType()));
+    }
+
+    public function testDeleteOperationTypeInUseIsRefused(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $type = $this->createOperationType($this->uniqueOperationType('USADO'));
+        $this->attachTransactionTo($type);
+        $before = $this->countOperationTypes();
+
+        $crawler = $client->request('GET', '/settings/operation-types');
+        $form = $crawler->filter(sprintf('form[action="/settings/operation-types/%d/delete"]', $type->getId()))->form();
+        $client->submit($form);
+
+        // A redirect + flash, not a 500 from the FK violation.
+        self::assertResponseRedirects('/settings/operation-types');
+        $client->followRedirect();
+        self::assertSelectorTextContains('.alert--error', 'cannot be removed');
+
+        // Both the type and its transaction survive.
+        self::assertNotNull($this->findOperationType($type->getType()));
+        self::assertSame($before, $this->countOperationTypes());
+    }
+
+    public function testDeleteOperationTypeRejectsInvalidCsrfToken(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $type = $this->createOperationType($this->uniqueOperationType('CSRF'));
+
+        $client->request('POST', sprintf('/settings/operation-types/%d/delete', $type->getId()), [
+            '_token' => 'invalid-token',
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertNotNull($this->findOperationType($type->getType()));
+    }
+
+    public function testDeleteOperationTypeRejectsGet(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $type = $this->createOperationType($this->uniqueOperationType('GET'));
+
+        $client->request('GET', sprintf('/settings/operation-types/%d/delete', $type->getId()));
+
+        self::assertResponseStatusCodeSame(405);
+        self::assertNotNull($this->findOperationType($type->getType()));
+    }
+
+    public function testDeleteUnknownOperationTypeReturnsNotFound(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $client->request('POST', '/settings/operation-types/999999/delete', ['_token' => 'irrelevant']);
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
     public function testAnonymousTickerRoutesRedirectToLogin(): void
     {
         $client = static::createClient();
@@ -612,6 +761,69 @@ final class SettingsControllerTest extends WebTestCase
 
         $client->request('POST', '/settings/tickers/1/delete');
         self::assertResponseRedirects('/login');
+    }
+
+    public function testAnonymousOperationTypeDeleteRedirectsToLogin(): void
+    {
+        $client = static::createClient();
+
+        $client->request('POST', '/settings/operation-types/1/delete');
+        self::assertResponseRedirects('/login');
+    }
+
+    /**
+     * Builds a transaction pointing at $operationType, so the FK really does
+     * reference it — the refusal path must be exercised against the database,
+     * not a mocked count.
+     */
+    private function attachTransactionTo(OperationType $operationType): void
+    {
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $em->clear();
+
+        // Re-fetch after the clear: the fixture passed in is detached, and a
+        // detached reference looks like an unmanaged new entity to persist().
+        $type = $em->getRepository(OperationType::class)->find($operationType->getId());
+        \assert($type instanceof OperationType);
+
+        $user = new User();
+        $user->setEmail(sprintf('optx-%s@example.com', uniqid()));
+        $user->setUsername(sprintf('optx-%s', uniqid()));
+        $user->setPassword('irrelevant-hash');
+        $em->persist($user);
+        $em->flush();
+        $em->clear();
+
+        $user = $em->getRepository(User::class)->find($user->getId());
+        $type = $em->getRepository(OperationType::class)->find($operationType->getId());
+        $account = new Account();
+        $account->setUser($user instanceof User ? $user : throw new \LogicException('user must exist'));
+        $account->setName(sprintf('ACC%s', strtoupper(substr(uniqid(), -6))));
+        $account->setCurrency(CurrencyEnum::BRL);
+        $em->persist($account);
+        $em->flush();
+        $em->clear();
+
+        $user = $em->getRepository(User::class)->find($user->getId());
+        $account = $em->getRepository(Account::class)->find($account->getId());
+        $type = $em->getRepository(OperationType::class)->find($operationType->getId());
+        \assert($user instanceof User);
+        \assert($account instanceof Account);
+        \assert($type instanceof OperationType);
+
+        $transaction = new Transaction();
+        $transaction->setUser($user);
+        $transaction->setAccount($account);
+        $transaction->setOperationType($type);
+        $transaction->setOperation(OperationEnum::CREDIT);
+        $transaction->setMovement(new \DateTime('2026-10-15'));
+        $transaction->setLiquidation(new \DateTime('2026-10-17'));
+        $transaction->setDescription(sprintf('TX%s', strtoupper(substr(uniqid(), -6))));
+        $transaction->setTotalPrice(10.00);
+
+        $em->persist($transaction);
+        $em->flush();
+        $em->clear();
     }
 
     /**
@@ -628,6 +840,8 @@ final class SettingsControllerTest extends WebTestCase
         $entityManager = static::getContainer()->get(EntityManagerInterface::class);
         $ticker = new Ticker();
         $ticker->setTicker($this->uniqueSymbol($prefix));
+        // name is NOT NULL, so every fixture must carry one.
+        $ticker->setName(sprintf('Name %s', $ticker->getTicker()));
         $entityManager->persist($ticker);
         $entityManager->flush();
         $entityManager->clear();

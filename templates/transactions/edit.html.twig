@@ -4,9 +4,6 @@
 
 {% block title %}Edit transaction · FinFlow{% endblock %}
 
-{# Sits inside <main>'s class attribute, so the leading space separates it. #}
-{% block main_class %} dash-main--wide{% endblock %}
-
 {% block dashboard_content %}
         <header class="dash-header">
             <h1>Edit transaction</h1>
@@ -47,6 +44,26 @@
                         {{ form_label(form.ticker, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.ticker) }}
                         {{ form_errors(form.ticker) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.amount, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.amount) }}
+                        {{ form_errors(form.amount) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.unitPrice, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.unitPrice) }}
+                        {{ form_errors(form.unitPrice) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.market, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.market) }}
+                        {{ form_errors(form.market) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.invoice, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.invoice) }}
+                        {{ form_errors(form.invoice) }}
                     </div>
                     <div class="form-field form-field--wide">
                         {{ form_label(form.description, null, {label_attr: {class: 'form-label'}}) }}

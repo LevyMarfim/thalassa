@@ -31,9 +31,9 @@
         </div>
     </aside>
 
-    {# Per-page width: dense pages (transactions) opt into the full window via
-       dash-main--wide, others keep the 960px reading cap. #}
-    <main class="dash-main{% block main_class %}{% endblock %}">
+    {# Full-window by default: every dashboard page spans the whole width. A
+       page that wants the 960px reading cap overrides this block empty. #}
+    <main class="dash-main{% block main_class %} dash-main--wide{% endblock %}">
         {% for label, messages in app.flashes %}
             {% for message in messages %}
                 <div class="alert alert--{{ label }}" role="status">{{ message }}</div>

@@ -36,6 +36,19 @@ class Ticker
     #[ORM\OneToMany(targetEntity: Transaction::class, mappedBy: 'ticker')]
     private Collection $transactions;
 
+    /**
+     * The human-readable security name, e.g. "Petróleo Brasileiro" for PETR4.
+     * NOT NULL in the column, so NotBlank keeps an empty string from being
+     * stored as a silent stand-in for a real name.
+     */
+    #[ORM\Column(length: 255)]
+    #[Assert\NotBlank(message: 'Please enter a name.')]
+    #[Assert\Length(
+        max: 255,
+        maxMessage: 'A name must be at most {{ limit }} characters long.',
+    )]
+    private ?string $name = null;
+
     public function __construct()
     {
         $this->transactions = new ArrayCollection();
@@ -93,6 +106,23 @@ class Ticker
                 $transaction->setTicker(null);
             }
         }
+
+        return $this;
+    }
+
+    public function getName(): ?string
+    {
+        return $this->name;
+    }
+
+    /**
+     * Nullable parameter even though the column is NOT NULL: a form can submit
+     * empty, and a non-nullable setter would throw a TypeError (500) before
+     * NotBlank could turn it into a 422. NotBlank is what rejects it.
+     */
+    public function setName(?string $name): static
+    {
+        $this->name = null === $name ? null : trim($name);
 
         return $this;
     }
