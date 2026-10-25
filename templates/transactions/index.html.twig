@@ -10,11 +10,23 @@
             <p>Your movements in BRL and USD.</p>
         </header>
 
+        {% if filteredAccount %}
+            <p class="tx-filter">
+                Showing only <strong>{{ filteredAccount.name }}</strong>
+                <a href="{{ path('app_transactions') }}">Show all</a>
+            </p>
+        {% endif %}
+
         <div class="dash-grid">
             <section class="card card--wide" aria-labelledby="add-heading">
                 <h2 id="add-heading">New transaction</h2>
 
                 {{ form_start(form, {attr: {class: 'tx-form', novalidate: 'novalidate'}}) }}
+                    <div class="form-field form-field--medium">
+                        {{ form_label(form.account, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.account) }}
+                        {{ form_errors(form.account) }}
+                    </div>
                     <div class="form-field">
                         {{ form_label(form.movement, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.movement) }}
@@ -30,7 +42,7 @@
                         {{ form_widget(form.operation) }}
                         {{ form_errors(form.operation) }}
                     </div>
-                    <div class="form-field">
+                    <div class="form-field form-field--medium">
                         {{ form_label(form.operationType, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.operationType) }}
                         {{ form_errors(form.operationType) }}
@@ -41,6 +53,26 @@
                         {{ form_errors(form.ticker) }}
                     </div>
                     <div class="form-field">
+                        {{ form_label(form.amount, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.amount) }}
+                        {{ form_errors(form.amount) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.unitPrice, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.unitPrice) }}
+                        {{ form_errors(form.unitPrice) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.market, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.market) }}
+                        {{ form_errors(form.market) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.invoice, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.invoice) }}
+                        {{ form_errors(form.invoice) }}
+                    </div>
+                    <div class="form-field form-field--wide">
                         {{ form_label(form.description, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.description, {attr: {class: 'form-input'}}) }}
                         {{ form_errors(form.description) }}
@@ -68,12 +100,17 @@
                         <table class="tx-table">
                             <thead>
                                 <tr>
+                                    <th scope="col">Account</th>
                                     <th scope="col">Movement</th>
                                     <th scope="col">Liquidation</th>
                                     <th scope="col">Operation</th>
                                     <th scope="col">Type</th>
                                     <th scope="col">Ticker</th>
-                                    <th scope="col">Description</th>
+                                    <th scope="col" class="tx-table__amount">Qty</th>
+                                    <th scope="col" class="tx-table__amount">Unit price</th>
+                                    <th scope="col">Market</th>
+                                    <th scope="col">Invoice</th>
+                                    <th scope="col" class="tx-table__col--flex">Description</th>
                                     <th scope="col" class="tx-table__amount">Total</th>
                                     <th scope="col"><span class="sr-only">Actions</span></th>
                                 </tr>
@@ -81,6 +118,7 @@
                             <tbody>
                                 {% for transaction in transactions %}
                                     <tr>
+                                        <td>{{ transaction.account.name }}</td>
                                         <td>{{ transaction.movement|date('d/m/Y', 'America/Sao_Paulo') }}</td>
                                         <td>{{ transaction.liquidation|date('d/m/Y', 'America/Sao_Paulo') }}</td>
                                         <td>
@@ -89,7 +127,11 @@
                                             </span>
                                         </td>
                                         <td>{{ transaction.operationType.type }}</td>
-                                        <td>{% if transaction.ticker %}<span class="ticker-symbol">{{ transaction.ticker.ticker }}</span>{% else %}—{% endif %}</td>
+                                        <td>{% if transaction.ticker %}<span class="ticker-symbol">{{ transaction.ticker.ticker }}</span><small class="activity-meta">{{ transaction.ticker.name }}</small>{% else %}—{% endif %}</td>
+                                        <td class="tx-table__amount">{{ transaction.amount is not null ? transaction.amount : '—' }}</td>
+                                        <td class="tx-table__amount">{{ transaction.unitPrice is not null ? transaction.unitPrice|number_format(2, ',', '.') : '—' }}</td>
+                                        <td>{% if transaction.market %}<span class="tx-badge tx-badge--market">{{ transaction.market.labels }}</span>{% else %}—{% endif %}</td>
+                                        <td>{{ transaction.invoice ?? '—' }}</td>
                                         <td class="tx-table__desc">{{ transaction.description }}</td>
                                         <td class="tx-table__amount tx-table__amount--{{ transaction.operation.value|lower }}">
                                             {{ transaction.totalPrice|number_format(2, ',', '.') }}

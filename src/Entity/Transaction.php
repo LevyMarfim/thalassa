@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Enum\MarketEnum;
 use App\Enum\OperationEnum;
 use App\Repository\TransactionRepository;
 use Doctrine\DBAL\Types\Types;
@@ -56,6 +57,28 @@ class Transaction
 
     #[ORM\ManyToOne(inversedBy: 'transactions')]
     private ?Ticker $ticker = null;
+
+    /**
+     * Which account the money moved in. Owning side, unidirectional like $user.
+     * Backfilled in the migration that introduced it: every pre-existing row was
+     * assigned to a "Default" account for its owner, so this can be NOT NULL.
+     */
+    #[ORM\ManyToOne(inversedBy: 'transactions')]
+    #[ORM\JoinColumn(nullable: false)]
+    #[Assert\NotBlank]
+    private ?Account $account = null;
+
+    #[ORM\Column(type: Types::SMALLINT, nullable: true)]
+    private ?int $amount = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?float $unitPrice = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $invoice = null;
+
+    #[ORM\Column(nullable: true, enumType: MarketEnum::class)]
+    private ?MarketEnum $market = null;
 
     public function getId(): ?int
     {
@@ -167,6 +190,66 @@ class Transaction
     public function setTicker(?Ticker $ticker): static
     {
         $this->ticker = $ticker;
+
+        return $this;
+    }
+
+    public function getAccount(): ?Account
+    {
+        return $this->account;
+    }
+
+    public function setAccount(?Account $account): static
+    {
+        $this->account = $account;
+
+        return $this;
+    }
+
+    public function getAmount(): ?int
+    {
+        return $this->amount;
+    }
+
+    public function setAmount(?int $amount): static
+    {
+        $this->amount = $amount;
+
+        return $this;
+    }
+
+    public function getUnitPrice(): ?float
+    {
+        return $this->unitPrice;
+    }
+
+    public function setUnitPrice(?float $unitPrice): static
+    {
+        $this->unitPrice = $unitPrice;
+
+        return $this;
+    }
+
+    public function getInvoice(): ?int
+    {
+        return $this->invoice;
+    }
+
+    public function setInvoice(?int $invoice): static
+    {
+        $this->invoice = $invoice;
+
+        return $this;
+    }
+
+    public function getMarket(): ?MarketEnum
+    {
+        return $this->market;
+    }
+
+    public function setMarket(?MarketEnum $market): static
+    {
+        $this->market = $market;
 
         return $this;
     }

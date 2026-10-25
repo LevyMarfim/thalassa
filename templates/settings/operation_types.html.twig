@@ -28,6 +28,10 @@
                             <li class="type-list__row">
                                 <span class="type-list__name">{{ operationType.type }}</span>
                                 <a class="type-list__edit" href="{{ path('app_settings_operation_type_edit', {id: operationType.id}) }}">Edit</a>
+                                <form class="type-list__delete-form" method="post" action="{{ path('app_settings_operation_type_delete', {id: operationType.id}) }}" onsubmit="return confirm('Remove operation type {{ operationType.type }}?');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('delete-operation-type') }}">
+                                    <button type="submit" class="type-list__delete">Remove</button>
+                                </form>
                             </li>
                         {% endfor %}
                     </ul>

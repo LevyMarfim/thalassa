@@ -6,7 +6,7 @@ ARG COMPOSER_VERSION=2
 
 FROM composer:${COMPOSER_VERSION} AS composer
 
-FROM dunglas/frankenphp:${FRANKENPHP_VERSION}-php${PHP_VERSION}-bookworm AS app
+FROM dunglas/frankenphp:${FRANKENPHP_VERSION}-php${PHP_VERSION}-trixiema AS app
 
 WORKDIR /app
 

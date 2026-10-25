@@ -3,9 +3,11 @@
 
 namespace App\Controller;
 
+use App\Entity\Account;
 use App\Entity\Transaction;
 use App\Entity\User;
 use App\Form\TransactionFormType;
+use App\Repository\AccountRepository;
 use App\Repository\OperationTypeRepository;
 use App\Repository\TickerRepository;
 use App\Repository\TransactionRepository;
@@ -22,6 +24,7 @@ final class TransactionController extends AbstractController
     public function index(
         Request $request,
         EntityManagerInterface $entityManager,
+        AccountRepository $accountRepository,
         TransactionRepository $transactionRepository,
         OperationTypeRepository $operationTypeRepository,
         TickerRepository $tickerRepository,
@@ -29,8 +32,27 @@ final class TransactionController extends AbstractController
         $user = $this->getUser();
         \assert($user instanceof User);
 
+        // Optional ?account= filter, linked from the accounts list. Anything
+        // that is not an account of the current user lands here as a 404 —
+        // never a 403, which would confirm the id exists.
+        $account = null;
+        if ($request->query->has('account')) {
+            $raw = $request->query->get('account');
+            $account = \is_string($raw) && ctype_digit($raw)
+                ? $accountRepository->find((int) $raw)
+                : null;
+
+            if (!$account instanceof Account || $account->getUser()?->getId() !== $user->getId()) {
+                throw $this->createNotFoundException('Account not found.');
+            }
+        }
+
+        // A transaction started from a filtered view belongs to that account.
         $transaction = new Transaction();
         $transaction->setUser($user);
+        if (null !== $account) {
+            $transaction->setAccount($account);
+        }
 
         $form = $this->createForm(TransactionFormType::class, $transaction);
         $form->handleRequest($request);
@@ -39,14 +61,18 @@ final class TransactionController extends AbstractController
             $entityManager->flush();
             $this->addFlash('success', 'Transaction added.');
 
-            return $this->redirectToRoute('app_transactions');
+            // Stay on the filtered view rather than dumping the user back on
+            // the full list they just navigated away from.
+            return $this->redirectToRoute(
+                'app_transactions',
+                null === $account ? [] : ['account' => $account->getId()]
+            );
         }
-
-        $transactions = $transactionRepository->findByUser($user);
 
         return $this->render('transactions/index.html.twig', [
             'form' => $form,
-            'transactions' => $transactions,
+            'transactions' => $transactionRepository->findByUser($user, $account),
+            'filteredAccount' => $account,
             'operationTypes' => $operationTypeRepository->findBy([], ['type' => 'ASC']),
             'tickers' => $tickerRepository->findBy([], ['ticker' => 'ASC']),
         ]);
