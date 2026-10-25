@@ -346,6 +346,17 @@ span.dash-nav__item { cursor: default; }
 
 .type-list__name { flex: 1; }
 
+/* Account names on the accounts page open that account's transactions. */
+a.type-list__name {
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+a.type-list__name:hover {
+    color: var(--color-primary-dark);
+    text-decoration: underline;
+}
+
 /* Second line under a recent-activity description: account + date. */
 .activity-meta {
     display: block;
@@ -648,6 +659,27 @@ span.dash-nav__item { cursor: default; }
     background: #fef2f2;
     color: #b91c1c;
 }
+
+/* Strip under the header when the list is narrowed to one account. */
+.tx-filter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: -8px 0 20px;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    background: var(--color-primary-soft);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.tx-filter a {
+    font-weight: 600;
+    color: var(--color-primary-dark);
+    text-decoration: none;
+}
+
+.tx-filter a:hover { text-decoration: underline; }
 
 /* -------------------- Responsive -------------------- */
 @media (max-width: 900px) {

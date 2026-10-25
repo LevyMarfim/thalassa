@@ -23,12 +23,12 @@
                     <ul class="type-list account-list">
                         {% for account in accounts %}
                             <li class="type-list__row">
-                                <span class="type-list__name">
+                                <a class="type-list__name type-list__link" href="{{ path('app_transactions', {account: account.id}) }}" title="View transactions for {{ account.name }}">
                                     {{ account.name }}
                                     {% if not account.active %}
                                         <span class="account-badge account-badge--inactive">Inactive</span>
                                     {% endif %}
-                                </span>
+                                </a>
                                 <span class="account-currency">{{ account.currency.value }}</span>
                                 {% set balance = balances[account.id]|default(0) %}
                                 <span class="account-balance {{ balance < 0 ? 'account-balance--negative' }}">

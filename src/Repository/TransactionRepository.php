@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Entity\Account;
 use App\Entity\Transaction;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -22,13 +23,23 @@ class TransactionRepository extends ServiceEntityRepository
      * Transaction is only scoped by this column, so an unscoped query would leak
      * one user's ledger to another.
      *
+     * Passing $account narrows the list to that one account — the user scope
+     * above stays in place, so the filter can only ever shrink the result set.
+     *
      * @return Transaction[]
      */
-    public function findByUser(User $user, int $limit = 100): array
+    public function findByUser(User $user, ?Account $account = null, int $limit = 100): array
     {
-        return $this->createQueryBuilder('t')
+        $qb = $this->createQueryBuilder('t')
             ->andWhere('t.user = :user')
-            ->setParameter('user', $user)
+            ->setParameter('user', $user);
+
+        if (null !== $account) {
+            $qb->andWhere('t.account = :account')
+                ->setParameter('account', $account);
+        }
+
+        return $qb
             ->orderBy('t.movement', 'DESC')
             ->addOrderBy('t.id', 'DESC')
             ->setMaxResults($limit)

@@ -10,6 +10,13 @@
             <p>Your movements in BRL and USD.</p>
         </header>
 
+        {% if filteredAccount %}
+            <p class="tx-filter">
+                Showing only <strong>{{ filteredAccount.name }}</strong>
+                <a href="{{ path('app_transactions') }}">Show all</a>
+            </p>
+        {% endif %}
+
         <div class="dash-grid">
             <section class="card card--wide" aria-labelledby="add-heading">
                 <h2 id="add-heading">New transaction</h2>

@@ -54,6 +54,120 @@ final class TransactionControllerTest extends WebTestCase
         self::assertSelectorTextContains('.tx-table', '1.234,56');
     }
 
+    public function testTransactionsCanBeFilteredByAccount(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+        $accountA = $data['account'];
+
+        $descA = $this->uniqueDescription('FILTRO-A');
+        $descB = $this->uniqueDescription('FILTRO-B');
+        // createTransaction() attaches to the owner's first account (A); B gets
+        // its own account so the filter has something to exclude.
+        $this->createTransaction($descA, 10.00);
+        $this->createAccountWithTransaction($descB, 20.00);
+
+        // Unfiltered: both rows are present and no filter strip is shown.
+        $crawler = $client->request('GET', '/transactions');
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('.tx-filter'));
+        self::assertSelectorTextContains('.tx-table', $descA);
+        self::assertSelectorTextContains('.tx-table', $descB);
+
+        // Filtered to account A: only its row remains, the strip names the
+        // account, and "Show all" leads back to the full list.
+        $crawler = $client->request('GET', sprintf('/transactions?account=%d', $accountA->getId()));
+        self::assertResponseIsSuccessful();
+        $table = $crawler->filter('.tx-table');
+        self::assertStringContainsString($descA, $table->html());
+        self::assertStringNotContainsString($descB, $table->html());
+        self::assertSelectorTextContains('.tx-filter', $accountA->getName());
+        self::assertCount(1, $crawler->filter('.tx-filter a[href="/transactions"]'));
+    }
+
+    public function testFilteredViewPreselectsTheAccountInTheForm(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+        $accountA = $data['account'];
+
+        $crawler = $client->request('GET', sprintf('/transactions?account=%d', $accountA->getId()));
+
+        self::assertResponseIsSuccessful();
+        $form = $crawler->filter('form[name="transaction_form"]')->form();
+        self::assertSame((string) $accountA->getId(), $form->get('transaction_form[account]')->getValue());
+    }
+
+    public function testCreatingFromFilteredViewKeepsTheFilter(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+        $accountA = $data['account'];
+        $description = $this->uniqueDescription('FILTRO-CRIADO');
+
+        $crawler = $client->request('GET', sprintf('/transactions?account=%d', $accountA->getId()));
+        $form = $crawler->filter('form[name="transaction_form"]')->form([
+            'transaction_form[account]' => (string) $accountA->getId(),
+            'transaction_form[movement]' => '2026-10-20',
+            'transaction_form[liquidation]' => '2026-10-22',
+            'transaction_form[operation]' => 'CREDIT',
+            'transaction_form[operationType]' => (string) $data['operationType']->getId(),
+            'transaction_form[description]' => $description,
+            'transaction_form[totalPrice]' => '99.90',
+        ]);
+        $client->submit($form);
+
+        // Back to the filtered view, not the full list.
+        self::assertResponseRedirects(sprintf('/transactions?account=%d', $accountA->getId()));
+        $crawler = $client->followRedirect();
+        self::assertSelectorTextContains('.tx-table', $description);
+
+        $created = $this->findTransaction($description);
+        self::assertNotNull($created);
+        self::assertSame($accountA->getId(), $created->getAccount()?->getId());
+    }
+
+    public function testAccountFilterRejectsForeignAccounts(): void
+    {
+        $client = static::createClient();
+        $me = $this->createUser();
+        // createAccountWithTransaction() attaches to currentUser, so the second
+        // user must be the one loaded when it runs.
+        $this->createUser();
+        $foreign = $this->createAccountWithTransaction($this->uniqueDescription('FILTRO-ALHEIO'), 5.00);
+
+        $client->loginUser($me);
+        $client->request('GET', sprintf('/transactions?account=%d', $foreign->getId()));
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testAccountFilterRejectsUnknownAndMalformedAccounts(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        // Unknown id, non-numeric id, empty value: none can name an account
+        // of this user, so every one is a 404.
+        $client->request('GET', '/transactions?account=999999');
+        self::assertResponseStatusCodeSame(404);
+
+        $client->request('GET', '/transactions?account=nada');
+        self::assertResponseStatusCodeSame(404);
+
+        $client->request('GET', '/transactions?account=');
+        self::assertResponseStatusCodeSame(404);
+
+        // An array never reaches the controller at all: the kernel rejects
+        // non-scalar request input with a 400 before any action runs. (The
+        // is_string() guard in the controller is defense in depth behind it.)
+        $client->request('GET', '/transactions?account[]=1');
+        self::assertResponseStatusCodeSame(400);
+    }
+
     public function testTransactionsPagesSpanFullWidth(): void
     {
         $client = static::createClient();
@@ -469,6 +583,47 @@ final class TransactionControllerTest extends WebTestCase
         $em->clear();
 
         return ['operationType' => $operationType, 'ticker' => $ticker, 'account' => $account];
+    }
+
+    /**
+     * A second account for the current user, with one transaction attached so
+     * the filtered view has rows of its own to show. Everything is flushed in
+     * a single unit of work: a clear() between the two persists would leave
+     * the association pointing at a detached entity.
+     */
+    private function createAccountWithTransaction(string $description, float $totalPrice): Account
+    {
+        $em = $this->entityManager();
+
+        $owner = $em->getRepository(User::class)->find($this->currentUser?->getId());
+        \assert($owner instanceof User);
+        $operationType = $em->getRepository(OperationType::class)->findOneBy([], ['id' => 'DESC']);
+        \assert($operationType instanceof OperationType);
+        $ticker = $em->getRepository(Ticker::class)->findOneBy([], ['id' => 'DESC']);
+        \assert($ticker instanceof Ticker);
+
+        $account = new Account();
+        $account->setUser($owner);
+        $account->setName(sprintf('ACC%s', strtoupper(substr(uniqid(), -6))));
+        $account->setCurrency(CurrencyEnum::BRL);
+        $em->persist($account);
+
+        $transaction = new Transaction();
+        $transaction->setUser($owner);
+        $transaction->setAccount($account);
+        $transaction->setMovement(new \DateTime('2026-10-15'));
+        $transaction->setLiquidation(new \DateTime('2026-10-17'));
+        $transaction->setOperation(OperationEnum::DEBIT);
+        $transaction->setOperationType($operationType);
+        $transaction->setTicker($ticker);
+        $transaction->setDescription($description);
+        $transaction->setTotalPrice($totalPrice);
+
+        $em->persist($transaction);
+        $em->flush();
+        $em->clear();
+
+        return $account;
     }
 
     private function createTransaction(string $description, float $totalPrice, ?User $owner = null): Transaction

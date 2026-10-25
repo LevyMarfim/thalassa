@@ -25,7 +25,7 @@ final class HomeController extends AbstractController
             // findByUser orders by movement DESC, so the head of the list is
             // the most recent activity. Five is enough for a dashboard glance;
             // the full list lives on the transactions page.
-            'recentTransactions' => $transactionRepository->findByUser($user, 5),
+            'recentTransactions' => $transactionRepository->findByUser($user, null, 5),
         ]);
     }
 }

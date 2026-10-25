@@ -46,6 +46,21 @@ final class AccountControllerTest extends WebTestCase
         self::assertSelectorTextContains('.account-list', $account->getName());
     }
 
+    public function testAccountNamesLinkToTheirTransactions(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $account = $this->createAccount($this->uniqueName('LINKED'));
+
+        $crawler = $client->request('GET', '/accounts');
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filter(sprintf(
+            'a.type-list__name.type-list__link[href="/transactions?account=%d"]',
+            $account->getId()
+        )));
+    }
+
     public function testIndexDoesNotShowOtherUsersAccounts(): void
     {
         $client = static::createClient();
