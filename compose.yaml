@@ -12,7 +12,14 @@ services:
       APP_DEBUG: ${APP_DEBUG:-1}
       DATABASE_URL: postgresql://${POSTGRES_USER:-thalassa}:${POSTGRES_PASSWORD:-thalassa}@database:5432/${POSTGRES_DB:-thalassa}?serverVersion=18&charset=utf8
       MESSENGER_TRANSPORT_DSN: ${MESSENGER_TRANSPORT_DSN:-doctrine://default?auto_setup=0}
-      FRANKENPHP_CONFIG: ${FRANKENPHP_CONFIG:-worker ./public/index.php}
+      # FrankenPHP tuning (dev overrides this block in compose.override.yaml to
+      # add file watching). max_requests recycles PHP threads so worker-mode
+      # memory growth stays bounded; memory_limit lives in
+      # docker/php/thalassa.ini, which is baked into the image and bind-mounted
+      # in dev.
+      FRANKENPHP_CONFIG: |-
+        max_requests 500
+        worker ./public/index.php
       FRANKENPHP_RESET_KERNEL: ${FRANKENPHP_RESET_KERNEL:-1}
     depends_on:
       database:

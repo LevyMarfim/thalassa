@@ -8,13 +8,21 @@ services:
       - "2019:2019"
     volumes:
       - .:/app
+      # Apply docker/php/thalassa.ini (memory_limit) without rebuilding the
+      # image; the same file is baked in for prod.
+      - ./docker/php/thalassa.ini:/usr/local/etc/php/conf.d/zz-thalassa.ini:ro
     environment:
       # Dev only: restart workers on file changes so edits apply without
       # rebuilding or restarting. Runtime files (var/) and deps (vendor/)
       # are deliberately excluded to avoid restart loops.
       FRANKENPHP_CONFIG: |-
+        # Recycle threads so worker-mode memory growth stays bounded.
+        max_requests 500
         worker {
             file ./public/index.php
+            # 2x CPU threads is overkill for a single-user dev box, and each
+            # thread holds its own memory.
+            num 4
             watch ./src/**/*.php
             watch ./templates/**/*.twig
             watch ./config/**/*.yaml
