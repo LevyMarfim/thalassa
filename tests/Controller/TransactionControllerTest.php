@@ -111,8 +111,8 @@ final class TransactionControllerTest extends WebTestCase
         $crawler = $client->request('GET', sprintf('/transactions?account=%d', $accountA->getId()));
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[account]' => (string) $accountA->getId(),
-            'transaction_form[movement]' => '2026-10-20',
-            'transaction_form[liquidation]' => '2026-10-22',
+            'transaction_form[movement]' => '20/10/2026',
+            'transaction_form[liquidation]' => '22/10/2026',
             'transaction_form[operation]' => 'CREDIT',
             'transaction_form[operationType]' => (string) $data['operationType']->getId(),
             'transaction_form[description]' => $description,
@@ -240,8 +240,8 @@ final class TransactionControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/transactions');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[account]' => (string) $data['account']->getId(),
-            'transaction_form[movement]' => '2026-10-20',
-            'transaction_form[liquidation]' => '2026-10-22',
+            'transaction_form[movement]' => '20/10/2026',
+            'transaction_form[liquidation]' => '22/10/2026',
             'transaction_form[operation]' => 'CREDIT',
             'transaction_form[operationType]' => (string) $data['operationType']->getId(),
             'transaction_form[ticker]' => (string) $data['ticker']->getId(),
@@ -271,8 +271,8 @@ final class TransactionControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/transactions');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[account]' => (string) $data['account']->getId(),
-            'transaction_form[movement]' => '2026-10-20',
-            'transaction_form[liquidation]' => '2026-10-22',
+            'transaction_form[movement]' => '20/10/2026',
+            'transaction_form[liquidation]' => '22/10/2026',
             'transaction_form[operation]' => 'DEBIT',
             'transaction_form[operationType]' => (string) $data['operationType']->getId(),
             'transaction_form[ticker]' => '',
@@ -302,8 +302,8 @@ final class TransactionControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/transactions');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[account]' => (string) $data['account']->getId(),
-            'transaction_form[movement]' => '2026-10-20',
-            'transaction_form[liquidation]' => '2026-10-22',
+            'transaction_form[movement]' => '20/10/2026',
+            'transaction_form[liquidation]' => '22/10/2026',
             'transaction_form[operation]' => 'CREDIT',
             'transaction_form[operationType]' => (string) $data['operationType']->getId(),
             'transaction_form[ticker]' => (string) $data['ticker']->getId(),
@@ -345,8 +345,8 @@ final class TransactionControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/transactions');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[account]' => (string) $data['account']->getId(),
-            'transaction_form[movement]' => '2026-10-20',
-            'transaction_form[liquidation]' => '2026-10-22',
+            'transaction_form[movement]' => '20/10/2026',
+            'transaction_form[liquidation]' => '22/10/2026',
             'transaction_form[operation]' => 'CREDIT',
             'transaction_form[operationType]' => (string) $data['operationType']->getId(),
             'transaction_form[ticker]' => '',
@@ -413,6 +413,87 @@ final class TransactionControllerTest extends WebTestCase
         self::assertSame($before, $this->countTransactions());
     }
 
+    /**
+     * The date fields must render as plain text inputs pinned to a dd/mm/yyyy
+     * shape — never as <input type="date">, whose format the browser derives
+     * from its own locale (mm/dd/yyyy on en-US) and which no server-side
+     * option can override. The placeholder mirrors the visible picker
+     * format: 06/jan/2022.
+     */
+    public function testDateFieldsAreTextInputsWithBrazilianFormat(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $crawler = $client->request('GET', '/transactions');
+
+        self::assertResponseIsSuccessful();
+
+        foreach (['movement', 'liquidation'] as $field) {
+            $input = $crawler->filter(sprintf('input[name="transaction_form[%s]"]', $field));
+            self::assertCount(1, $input);
+            self::assertSame('text', $input->attr('type'), sprintf('The %s field must not be a browser-format date input.', $field));
+            self::assertSame('dd/mmm/yyyy', $input->attr('placeholder'));
+            self::assertSame('10', $input->attr('maxlength'));
+        }
+    }
+
+    /**
+     * The same fields are progressively enhanced with the flatpickr popup
+     * calendar (Stimulus date_picker controller): JS through the importmap,
+     * theme through a stylesheet link, hook on both inputs.
+     */
+    public function testDateFieldsAreEnhancedWithDatePicker(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $crawler = $client->request('GET', '/transactions');
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(2, $crawler->filter('input[data-controller="date-picker"]'));
+        self::assertStringContainsString('flatpickr', $crawler->filter('script[type="importmap"]')->text());
+        // Scope to rel=stylesheet: the modulepreload for the JS also matches
+        // a bare href* selector (lesson from an earlier round).
+        self::assertCount(1, $crawler->filter('link[rel="stylesheet"][href*="flatpickr"]'));
+    }
+
+    /**
+     * A date in the old Y-m-d order (or any other) must be rejected by the
+     * transformer with a form error, not stored or silently reinterpreted
+     * (2026-10-20 would be October 20 under d/m/Y parsing of a 2-digit month).
+     */
+    public function testCreateTransactionRejectsDateInWrongFormat(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+        $before = $this->countTransactions();
+
+        $crawler = $client->request('GET', '/transactions');
+        $form = $crawler->filter('form[name="transaction_form"]')->form([
+            'transaction_form[account]' => (string) $data['account']->getId(),
+            'transaction_form[movement]' => '2026-10-20',
+            'transaction_form[liquidation]' => '22/10/2026',
+            'transaction_form[operation]' => 'CREDIT',
+            'transaction_form[operationType]' => (string) $data['operationType']->getId(),
+            'transaction_form[description]' => $this->uniqueDescription('DATAERR'),
+            'transaction_form[totalPrice]' => '10.00',
+        ]);
+        $crawler = $client->submit($form);
+
+        self::assertResponseIsUnprocessable();
+        self::assertSame($before, $this->countTransactions());
+        // form_errors() renders a bare <ul><li> right after the input (no
+        // custom form theme), inside the field's .form-field wrapper.
+        self::assertStringContainsString(
+            'dd/mm/yyyy',
+            $crawler->filter('input[name="transaction_form[movement]"]')->ancestors()->first()->filter('ul li')->text()
+        );
+    }
+
     public function testEditPageRendersPrefilled(): void
     {
         $client = static::createClient();
@@ -427,6 +508,10 @@ final class TransactionControllerTest extends WebTestCase
             $transaction->getDescription(),
             $crawler->filter('input[name="transaction_form[description]"]')->attr('value')
         );
+        // The server renders its numeric wire value (the picker re-displays
+        // it as 15/out/2026 client-side; the fixture uses 2026-10-15/17).
+        self::assertSame('15/10/2026', $crawler->filter('input[name="transaction_form[movement]"]')->attr('value'));
+        self::assertSame('17/10/2026', $crawler->filter('input[name="transaction_form[liquidation]"]')->attr('value'));
     }
 
     public function testEditTransactionSuccess(): void

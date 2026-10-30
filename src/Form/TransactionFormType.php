@@ -48,18 +48,46 @@ final class TransactionFormType extends AbstractType
                 },
                 'constraints' => [new NotBlank(message: 'Please choose an account.')],
             ])
+            // Text input instead of the native <input type="date">, whose
+            // display format is dictated by the browser's locale
+            // (mm/dd/yyyy on an en-US browser) and cannot be overridden from
+            // the server. The ICU pattern below is the numeric WIRE format —
+            // rendering, strict parsing, everything the server sees. The
+            // visible dd/jan/yyyy rendering (flatpickr, via the date_picker
+            // controller) is presentation layered on top and submits this
+            // same numeric value.
             ->add('movement', DateType::class, [
                 'label' => 'Movement date',
                 'widget' => 'single_text',
-                'format' => 'yyyy-MM-dd',
-                'attr' => ['class' => 'form-input'],
+                'html5' => false,
+                'format' => 'dd/MM/yyyy',
+                'invalid_message' => 'Please enter the movement date as dd/mm/yyyy (e.g. 25/10/2026).',
+                'attr' => [
+                    'class' => 'form-input',
+                    // Popup calendar + numbers-only typing (flatpickr). Pure
+                    // enhancement: without JS the field stays this text input
+                    // and the server-side dd/MM/yyyy parse still applies.
+                    'data-controller' => 'date-picker',
+                    // The shape of the VISIBLE field: 06/jan/2022.
+                    'placeholder' => 'dd/mmm/yyyy',
+                    'inputmode' => 'numeric',
+                    'maxlength' => '10',
+                ],
                 'constraints' => [new NotBlank(message: 'Please choose a movement date.')],
             ])
             ->add('liquidation', DateType::class, [
                 'label' => 'Liquidation date',
                 'widget' => 'single_text',
-                'format' => 'yyyy-MM-dd',
-                'attr' => ['class' => 'form-input'],
+                'html5' => false,
+                'format' => 'dd/MM/yyyy',
+                'invalid_message' => 'Please enter the liquidation date as dd/mm/yyyy (e.g. 25/10/2026).',
+                'attr' => [
+                    'class' => 'form-input',
+                    'data-controller' => 'date-picker',
+                    'placeholder' => 'dd/mmm/yyyy',
+                    'inputmode' => 'numeric',
+                    'maxlength' => '10',
+                ],
                 'constraints' => [new NotBlank(message: 'Please choose a liquidation date.')],
             ])
             ->add('operation', EnumType::class, [
