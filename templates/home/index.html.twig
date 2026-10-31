@@ -87,7 +87,7 @@
                                     {{ transaction.description }}
                                     <small class="activity-meta">
                                         {{ transaction.account.name }} ·
-                                        {{ transaction.movement|date('d/m/Y') }}
+                                        {{ transaction.movement|date_only }}
                                     </small>
                                 </span>
                                 {# ABS() because the stored sign is not reliable — the operation

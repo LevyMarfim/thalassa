@@ -12,6 +12,7 @@ use App\Enum\MarketEnum;
 use App\Enum\OperationEnum;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 final class TransactionControllerTest extends WebTestCase
@@ -52,6 +53,79 @@ final class TransactionControllerTest extends WebTestCase
         self::assertCount(1, $crawler->filter('form[name="transaction_form"]'));
         self::assertSelectorTextContains('.tx-table', $transaction->getDescription());
         self::assertSelectorTextContains('.tx-table', '1.234,56');
+    }
+
+    /**
+     * movement/liquidation are DATE columns: the table must print the calendar
+     * day the database holds. It previously passed 'America/Sao_Paulo' to the
+     * date filter, which re-interpreted the hydrated UTC midnight as 21:00 the
+     * previous day — the listing showed every date one day early, while the
+     * edit form (no conversion) and the database were both correct.
+     */
+    public function testListingShowsTheCalendarDateStoredInTheDatabase(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+        $description = $this->uniqueDescription('DATA');
+        // Fixture dates: movement 2026-10-15, liquidation 2026-10-17.
+        $this->createTransaction($description, 10.00);
+
+        $crawler = $client->request('GET', '/transactions');
+
+        self::assertResponseIsSuccessful();
+
+        // Scope the assertions to this row so no neighbouring fixture can
+        // satisfy them on its behalf.
+        $row = $crawler->filter('.tx-table tbody tr')->reduce(
+            static fn (Crawler $tr): bool => str_contains($tr->text(), $description)
+        );
+        self::assertCount(1, $row);
+
+        $html = $row->html();
+        self::assertStringContainsString('15/10/2026', $html);
+        self::assertStringContainsString('17/10/2026', $html);
+        self::assertStringNotContainsString('14/10/2026', $html);
+        self::assertStringNotContainsString('16/10/2026', $html);
+    }
+
+    /**
+     * The write path must not shift either: a typed dd/mm/yyyy date is stored
+     * as that same calendar day, and the listing then shows it.
+     */
+    public function testCreateTransactionKeepsTheTypedCalendarDate(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+        $description = $this->uniqueDescription('DATA-CRIADA');
+
+        $crawler = $client->request('GET', '/transactions');
+        $form = $crawler->filter('form[name="transaction_form"]')->form([
+            'transaction_form[account]' => (string) $data['account']->getId(),
+            'transaction_form[movement]' => '20/10/2026',
+            'transaction_form[liquidation]' => '22/10/2026',
+            'transaction_form[operation]' => 'CREDIT',
+            'transaction_form[operationType]' => (string) $data['operationType']->getId(),
+            'transaction_form[description]' => $description,
+            'transaction_form[totalPrice]' => '10.00',
+        ]);
+        $client->submit($form);
+
+        self::assertResponseRedirects('/transactions');
+
+        $created = $this->findTransaction($description);
+        self::assertNotNull($created);
+        self::assertSame('2026-10-20', $created->getMovement()?->format('Y-m-d'));
+        self::assertSame('2026-10-22', $created->getLiquidation()?->format('Y-m-d'));
+
+        $crawler = $client->followRedirect();
+        $row = $crawler->filter('.tx-table tbody tr')->reduce(
+            static fn (Crawler $tr): bool => str_contains($tr->text(), $description)
+        );
+        self::assertCount(1, $row);
+        self::assertStringContainsString('20/10/2026', $row->html());
+        self::assertStringContainsString('22/10/2026', $row->html());
     }
 
     public function testTransactionsCanBeFilteredByAccount(): void

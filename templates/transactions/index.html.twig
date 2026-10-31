@@ -119,8 +119,10 @@
                                 {% for transaction in transactions %}
                                     <tr>
                                         <td>{{ transaction.account.name }}</td>
-                                        <td>{{ transaction.movement|date('d/m/Y', 'America/Sao_Paulo') }}</td>
-                                        <td>{{ transaction.liquidation|date('d/m/Y', 'America/Sao_Paulo') }}</td>
+                                        {# DATE columns are calendar dates: date_only keeps the stored
+                                           day. A display timezone here would render the previous one. #}
+                                        <td>{{ transaction.movement|date_only }}</td>
+                                        <td>{{ transaction.liquidation|date_only }}</td>
                                         <td>
                                             <span class="tx-badge tx-badge--{{ transaction.operation.value|lower }}">
                                                 {{ transaction.operation.labels }}
