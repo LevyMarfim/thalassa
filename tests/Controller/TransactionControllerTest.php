@@ -57,10 +57,11 @@ final class TransactionControllerTest extends WebTestCase
 
     /**
      * movement/liquidation are DATE columns: the table must print the calendar
-     * day the database holds. It previously passed 'America/Sao_Paulo' to the
-     * date filter, which re-interpreted the hydrated UTC midnight as 21:00 the
-     * previous day — the listing showed every date one day early, while the
-     * edit form (no conversion) and the database were both correct.
+     * day the database holds, spelled dd/mmm/yyyy (15/out/2026). It previously
+     * passed 'America/Sao_Paulo' to the date filter, which re-interpreted the
+     * hydrated UTC midnight as 21:00 the previous day — the listing showed
+     * every date one day early, while the edit form (no conversion) and the
+     * database were both correct.
      */
     public function testListingShowsTheCalendarDateStoredInTheDatabase(): void
     {
@@ -83,10 +84,12 @@ final class TransactionControllerTest extends WebTestCase
         self::assertCount(1, $row);
 
         $html = $row->html();
-        self::assertStringContainsString('15/10/2026', $html);
-        self::assertStringContainsString('17/10/2026', $html);
-        self::assertStringNotContainsString('14/10/2026', $html);
-        self::assertStringNotContainsString('16/10/2026', $html);
+        self::assertStringContainsString('15/out/2026', $html);
+        self::assertStringContainsString('17/out/2026', $html);
+        self::assertStringNotContainsString('14/out/2026', $html);
+        self::assertStringNotContainsString('16/out/2026', $html);
+        // The numeric form belongs to the form field, not the listing.
+        self::assertStringNotContainsString('15/10/2026', $html);
     }
 
     /**
@@ -124,8 +127,8 @@ final class TransactionControllerTest extends WebTestCase
             static fn (Crawler $tr): bool => str_contains($tr->text(), $description)
         );
         self::assertCount(1, $row);
-        self::assertStringContainsString('20/10/2026', $row->html());
-        self::assertStringContainsString('22/10/2026', $row->html());
+        self::assertStringContainsString('20/out/2026', $row->html());
+        self::assertStringContainsString('22/out/2026', $row->html());
     }
 
     public function testTransactionsCanBeFilteredByAccount(): void

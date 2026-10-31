@@ -19,6 +19,7 @@ final class DateOnlyExtensionTest extends KernelTestCase
         $twig = $this->twig();
 
         self::assertNotNull($twig->getFilter('date_only'));
+        self::assertNotNull($twig->getFilter('date_only_short'));
     }
 
     public function testItKeepsTheCalendarDayOfAUtcMidnightDate(): void
@@ -53,6 +54,48 @@ final class DateOnlyExtensionTest extends KernelTestCase
 
         self::assertSame('22/10/2026', $this->render('{{ d|date_only }}', $saoPaulo));
         self::assertSame('22/10/2026 00:00', $this->render("{{ d|date_only('d/m/Y H:i') }}", $saoPaulo));
+    }
+
+    /**
+     * dd/mmm/yyyy listings: 07/09/2023 reads 07/set/2023. Lowercase, no dot —
+     * ICU's pt_BR abbreviation is "set." and would not round-trip through the
+     * picker, so the names are pinned here.
+     */
+    public function testTheShortFilterSpellsTheMonthInPortuguese(): void
+    {
+        $expected = [
+            '2023-09-07' => '07/set/2023',
+            '2026-01-01' => '01/jan/2026',
+            '2026-02-28' => '28/fev/2026',
+            '2026-03-15' => '15/mar/2026',
+            '2026-04-30' => '30/abr/2026',
+            '2026-05-09' => '09/mai/2026',
+            '2026-06-10' => '10/jun/2026',
+            '2026-07-11' => '11/jul/2026',
+            '2026-08-12' => '12/ago/2026',
+            '2026-10-22' => '22/out/2026',
+            '2026-11-13' => '13/nov/2026',
+            '2026-12-31' => '31/dez/2026',
+        ];
+
+        foreach ($expected as $iso => $rendered) {
+            $date = new \DateTime($iso.' 00:00:00', new \DateTimeZone('UTC'));
+
+            self::assertSame($rendered, $this->render('{{ d|date_only_short }}', $date), $iso);
+        }
+    }
+
+    public function testTheShortFilterKeepsTheCalendarDay(): void
+    {
+        // Same defect class as date_only: UTC midnight must not slide back a day.
+        $hydrated = new \DateTime('2026-10-22 00:00:00', new \DateTimeZone('UTC'));
+
+        self::assertSame('22/out/2026', $this->render('{{ d|date_only_short }}', $hydrated));
+    }
+
+    public function testTheShortFilterRendersNothingForAMissingDate(): void
+    {
+        self::assertSame('', $this->render('{{ d|date_only_short }}', null));
     }
 
     public function testItRendersNothingForAMissingDate(): void

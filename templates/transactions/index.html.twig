@@ -120,9 +120,11 @@
                                     <tr>
                                         <td>{{ transaction.account.name }}</td>
                                         {# DATE columns are calendar dates: date_only keeps the stored
-                                           day. A display timezone here would render the previous one. #}
-                                        <td>{{ transaction.movement|date_only }}</td>
-                                        <td>{{ transaction.liquidation|date_only }}</td>
+                                           day. A display timezone here would render the previous one.
+                                           Listings read dd/mmm/yyyy (07/set/2023); the form keeps the
+                                           numeric wire value the server parses back. #}
+                                        <td>{{ transaction.movement|date_only_short }}</td>
+                                        <td>{{ transaction.liquidation|date_only_short }}</td>
                                         <td>
                                             <span class="tx-badge tx-badge--{{ transaction.operation.value|lower }}">
                                                 {{ transaction.operation.labels }}
