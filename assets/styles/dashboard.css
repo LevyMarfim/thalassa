@@ -31,20 +31,29 @@ body {
 }
 
 .dash {
-    display: grid;
-    grid-template-columns: 240px 1fr;
+    /* Reserves the collapsed rail's footprint. The sidebar itself is fixed and
+       out of flow, so expanding it overlays the page instead of reflowing it. */
+    padding-left: 76px;
     min-height: 100vh;
     background-color: #f1f5f9;
 }
 
 /* -------------------- Sidebar -------------------- */
 .dash-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    width: 76px;
+    overflow: hidden;
     background: var(--color-sidebar);
     color: #e2e8f0;
-    padding: 24px 16px;
+    padding: 24px 12px;
     display: flex;
     flex-direction: column;
-    gap: 32px;
+    gap: 24px;
+    transition: width 0.18s ease, padding 0.18s ease;
 }
 
 .dash-brand {
@@ -145,6 +154,112 @@ span.dash-nav__item { cursor: default; }
 
 .dash-user__logout:hover { color: #fff; text-decoration: underline; }
 
+/* -------------------- Hover-expanding sidebar -------------------- */
+.dash-brand__name { white-space: nowrap; }
+
+.dash-nav__icon {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.dash-nav__icon svg { width: 100%; height: 100%; }
+
+.dash-nav__label { white-space: nowrap; }
+
+.dash-user__logout {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.dash-user__logout-icon {
+    display: inline-flex;
+    width: 14px;
+    height: 14px;
+}
+
+.dash-user__logout-icon svg { width: 100%; height: 100%; }
+
+/*
+ * Collapsed rail (the default): icons only, 76px wide. Hovering expands the
+ * panel to its full width on top of the page; `:focus-within` does the same
+ * for keyboard users, who cannot hover. Because the sidebar is fixed and out
+ * of flow, expanding it never reflows the content underneath.
+ */
+.dash-sidebar .dash-brand {
+    justify-content: center;
+    padding: 0;
+}
+
+.dash-sidebar .dash-brand__name,
+.dash-sidebar .dash-nav__label,
+.dash-sidebar .dash-user__name,
+.dash-sidebar .dash-user__logout-label { display: none; }
+
+.dash-sidebar .dash-nav__item {
+    justify-content: center;
+    padding: 10px;
+}
+
+.dash-sidebar .dash-user {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0;
+}
+
+.dash-sidebar .dash-user__info {
+    display: flex;
+    justify-content: center;
+}
+
+.dash-sidebar:hover,
+.dash-sidebar:focus-within {
+    width: 240px;
+    padding: 24px 16px;
+    box-shadow: 8px 0 24px rgba(15, 23, 42, 0.2);
+}
+
+.dash-sidebar:hover .dash-brand,
+.dash-sidebar:focus-within .dash-brand {
+    justify-content: flex-start;
+    padding: 0 8px;
+}
+
+.dash-sidebar:hover .dash-brand__name,
+.dash-sidebar:hover .dash-nav__label,
+.dash-sidebar:hover .dash-user__name,
+.dash-sidebar:hover .dash-user__logout-label,
+.dash-sidebar:focus-within .dash-brand__name,
+.dash-sidebar:focus-within .dash-nav__label,
+.dash-sidebar:focus-within .dash-user__name,
+.dash-sidebar:focus-within .dash-user__logout-label { display: block; }
+
+.dash-sidebar:hover .dash-nav__item,
+.dash-sidebar:focus-within .dash-nav__item {
+    justify-content: flex-start;
+    padding: 10px 12px;
+}
+
+.dash-sidebar:hover .dash-user,
+.dash-sidebar:focus-within .dash-user {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+}
+
+.dash-sidebar:hover .dash-user__info,
+.dash-sidebar:focus-within .dash-user__info {
+    display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dash-sidebar { transition: none; }
+}
+
 /* -------------------- Main -------------------- */
 .dash-main {
     padding: 32px 36px;
@@ -153,7 +268,7 @@ span.dash-nav__item { cursor: default; }
     max-width: 960px;
 }
 
-/* Default: the shell already gives main the full 1fr track, so this only
+/* Default: the shell reserves only the collapsed rail's width, so this only
    removes the internal reading cap — letting every dashboard page span the
    whole window. A page opts back into the cap by overriding the main_class
    block in the layout to render nothing. */
@@ -705,7 +820,9 @@ a.type-list__name:hover {
 
 /* -------------------- Responsive -------------------- */
 @media (max-width: 900px) {
-    .dash { grid-template-columns: 1fr; }
+    /* The rail is desktop-only: down here the sidebar is hidden, so its
+       footprint goes away with it. */
+    .dash { padding-left: 0; }
     .dash-sidebar { display: none; }
     .dash-grid { grid-template-columns: 1fr; }
 }

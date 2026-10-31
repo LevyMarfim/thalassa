@@ -12,21 +12,59 @@
     <aside class="dash-sidebar">
         <div class="dash-brand">
             <span class="dash-brand__logo">{{ include('components/_logo.svg') }}</span>
-            <span>FinFlow</span>
+            <span class="dash-brand__name">FinFlow</span>
         </div>
 
+        {# Collapsed to an icon rail that expands on hover/focus (CSS only).
+           The labels are hidden by the stylesheet, not the template, and each
+           link keeps its own aria-label/title for the rail state. #}
         <nav class="dash-nav" aria-label="Main">
-            <a class="dash-nav__item {{ active_nav == 'dashboard' ? 'dash-nav__item--active' }}" href="{{ path('app_home') }}">Dashboard</a>
-            <a class="dash-nav__item {{ active_nav == 'accounts' ? 'dash-nav__item--active' }}" href="{{ path('app_accounts') }}">Accounts</a>
-            <a class="dash-nav__item {{ active_nav == 'transactions' ? 'dash-nav__item--active' }}" href="{{ path('app_transactions') }}">Transactions</a>
-            <a class="dash-nav__item {{ active_nav == 'settings' ? 'dash-nav__item--active' }}" href="{{ path('app_settings') }}">Settings</a>
+            <a class="dash-nav__item {{ active_nav == 'dashboard' ? 'dash-nav__item--active' }}" href="{{ path('app_home') }}" title="Dashboard" aria-label="Dashboard">
+                <span class="dash-nav__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                        <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+                    </svg>
+                </span>
+                <span class="dash-nav__label">Dashboard</span>
+            </a>
+            <a class="dash-nav__item {{ active_nav == 'accounts' ? 'dash-nav__item--active' }}" href="{{ path('app_accounts') }}" title="Accounts" aria-label="Accounts">
+                <span class="dash-nav__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                        <rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/>
+                    </svg>
+                </span>
+                <span class="dash-nav__label">Accounts</span>
+            </a>
+            <a class="dash-nav__item {{ active_nav == 'transactions' ? 'dash-nav__item--active' }}" href="{{ path('app_transactions') }}" title="Transactions" aria-label="Transactions">
+                <span class="dash-nav__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                        <path d="M4 8h13"/><path d="M14 5l3 3-3 3"/><path d="M20 16H7"/><path d="M10 13l-3 3 3 3"/>
+                    </svg>
+                </span>
+                <span class="dash-nav__label">Transactions</span>
+            </a>
+            <a class="dash-nav__item {{ active_nav == 'settings' ? 'dash-nav__item--active' }}" href="{{ path('app_settings') }}" title="Settings" aria-label="Settings">
+                <span class="dash-nav__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                        <path d="M4 7h10"/><path d="M18 7h2"/><circle cx="16" cy="7" r="2"/><path d="M4 17h2"/><path d="M10 17h10"/><circle cx="8" cy="17" r="2"/>
+                    </svg>
+                </span>
+                <span class="dash-nav__label">Settings</span>
+            </a>
         </nav>
 
         <div class="dash-user">
             <span class="dash-user__avatar" aria-hidden="true">{{ app.user.username|first }}</span>
             <div class="dash-user__info">
                 <div class="dash-user__name">{{ app.user.username }}</div>
-                <a class="dash-user__logout" href="{{ path('app_logout') }}">Log out</a>
+                <a class="dash-user__logout" href="{{ path('app_logout') }}" title="Log out" aria-label="Log out">
+                    <span class="dash-user__logout-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>
+                        </svg>
+                    </span>
+                    <span class="dash-user__logout-label">Log out</span>
+                </a>
             </div>
         </div>
     </aside>
