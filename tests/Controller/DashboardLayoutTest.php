@@ -11,6 +11,7 @@ use App\Enum\CurrencyEnum;
 use App\Enum\OperationEnum;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 /**
@@ -54,6 +55,52 @@ final class DashboardLayoutTest extends WebTestCase
                 $crawler->filter('main.dash-main.dash-main--wide'),
                 \sprintf('%s is not spanning the full window', $label)
             );
+        }
+    }
+
+    /**
+     * The sidebar is a 76px icon rail that expands on hover (or keyboard
+     * focus), entirely in CSS — no toggle button, no controller, no stored
+     * state. The markup contract is therefore narrow but critical: the labels
+     * must be in the DOM for the stylesheet to reveal, and every link needs
+     * its own accessible name because its visible label is hidden in the rail
+     * state.
+     */
+    public function testSidebarIsACssOnlyIconRailWithAccessibleLinks(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $crawler = $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+
+        // Nothing JS-driven toggles the sidebar: the stylesheet does, so a
+        // collapsed rail cannot flash or lose its state across navigations.
+        self::assertCount(0, $crawler->filter('.dash[data-controller]'));
+        self::assertCount(0, $crawler->filter('.dash-sidebar button'));
+        self::assertStringNotContainsString('thalassa:sidebar', $crawler->filter('head')->html());
+
+        $sidebar = $crawler->filter('aside.dash-sidebar');
+        self::assertCount(1, $sidebar);
+        self::assertCount(1, $sidebar->filter('.dash-brand__name'));
+
+        // The labels are hidden by CSS in the rail state, so they must exist in
+        // the markup or hovering would reveal nothing.
+        self::assertSame(
+            ['Dashboard', 'Accounts', 'Transactions', 'Settings'],
+            $sidebar->filter('.dash-nav__label')->each(static fn (Crawler $label): string => $label->text())
+        );
+        self::assertCount(1, $sidebar->filter('.dash-user__logout-label'));
+
+        $links = $sidebar->filter('.dash-nav a');
+        self::assertCount(4, $links);
+        foreach ($links as $link) {
+            \assert($link instanceof \DOMElement);
+            self::assertNotSame('', $link->getAttribute('aria-label'));
+            self::assertSame($link->getAttribute('aria-label'), $link->getAttribute('title'));
+            // One icon per link, so the rail is still navigable by sight.
+            self::assertCount(1, $link->getElementsByTagName('svg'));
         }
     }
 
