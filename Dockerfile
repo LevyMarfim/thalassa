@@ -25,6 +25,10 @@ ENV APP_ENV=prod \
     FRANKENPHP_RESET_KERNEL=1 \
     SERVER_NAME=:80
 
+# PHP overrides (memory_limit) for the workers. Dev bind-mounts this same file
+# from compose.override.yaml so the limit applies without rebuilding the image.
+COPY docker/php/thalassa.ini /usr/local/etc/php/conf.d/zz-thalassa.ini
+
 COPY --from=composer /usr/bin/composer /usr/bin/composer
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint
 

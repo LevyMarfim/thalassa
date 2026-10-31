@@ -270,6 +270,28 @@ span.dash-nav__item { cursor: default; }
     box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
 }
 
+/* flatpickr popup calendar, on brand with the rest of the form. The vendor
+   stylesheet loads after this file, so these selectors stay one level more
+   specific than the theme's. */
+.flatpickr-wrapper .flatpickr-calendar {
+    border-radius: var(--radius-sm);
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+}
+
+.flatpickr-calendar .flatpickr-day:hover,
+.flatpickr-calendar .flatpickr-day.selected,
+.flatpickr-calendar .flatpickr-day.selected:hover,
+.flatpickr-calendar .flatpickr-day:focus {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+}
+
+.flatpickr-wrapper .flatpickr-months .flatpickr-month {
+    background: var(--color-primary-soft);
+    color: var(--color-text);
+}
+
 /* Field-level errors rendered by Symfony */
 .form-field ul {
     list-style: none;
