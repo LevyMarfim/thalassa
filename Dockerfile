@@ -20,9 +20,11 @@ RUN install-php-extensions \
     pdo_pgsql \
     zip
 
+# Reuse one kernel (and one DBAL connection) per worker thread instead of
+# cloning it per request; see the note in compose.yaml.
 ENV APP_ENV=prod \
     FRANKENPHP_CONFIG="worker ./public/index.php" \
-    FRANKENPHP_RESET_KERNEL=1 \
+    FRANKENPHP_RESET_KERNEL=0 \
     SERVER_NAME=:80
 
 # PHP overrides (memory_limit) for the workers. Dev bind-mounts this same file

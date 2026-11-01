@@ -90,11 +90,11 @@
                                         {{ transaction.movement|date_only }}
                                     </small>
                                 </span>
-                                {# ABS() because the stored sign is not reliable — the operation
-                                   enum is the sole source of direction (see AccountRepository). #}
+                                {# Signed by the operation: a debit is money out and
+                                   renders negative, matching the account balance. #}
                                 <span class="account-balance {{ transaction.operation.value|lower == 'debit' ? 'account-balance--negative' }}">
                                     {{ transaction.account.currency.symbol }}
-                                    {{ (transaction.totalPrice|abs)|number_format(2, ',', '.') }}
+                                    {{ transaction.signedTotalPrice|number_format(2, ',', '.') }}
                                 </span>
                             </li>
                         {% endfor %}

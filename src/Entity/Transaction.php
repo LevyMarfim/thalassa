@@ -143,6 +143,10 @@ class Transaction
     {
         $this->operation = $operation;
 
+        // Keep the stored sign in step with the direction, whichever setter
+        // runs last (form binding order is not a guarantee, fixtures differ).
+        $this->syncTotalPriceSign();
+
         return $this;
     }
 
@@ -175,11 +179,46 @@ class Transaction
         return $this->totalPrice;
     }
 
+    /**
+     * Total with the operation's direction applied: a credit is money in
+     * (positive), a debit is money out (negative).
+     *
+     * Writes already store the signed value (see setTotalPrice()), so this
+     * mostly restates what the column holds. ABS() keeps it correct for rows
+     * written before that normalisation, or imported from elsewhere. This is
+     * the PHP counterpart of the CASE expression in
+     * AccountRepository::findBalancesByUser(), so a listing and a balance can
+     * never disagree about a debit.
+     */
+    public function getSignedTotalPrice(): float
+    {
+        $total = abs($this->totalPrice ?? 0.0);
+
+        return OperationEnum::DEBIT === $this->operation ? -$total : $total;
+    }
+
     public function setTotalPrice(?float $totalPrice): static
     {
         $this->totalPrice = $totalPrice;
+        $this->syncTotalPriceSign();
 
         return $this;
+    }
+
+    /**
+     * Stores the total as a signed amount — credits positive, debits negative —
+     * so the column itself can be summed. Called from both setters because the
+     * operation and the total may arrive in either order.
+     */
+    private function syncTotalPriceSign(): void
+    {
+        if (null === $this->totalPrice) {
+            return;
+        }
+
+        $this->totalPrice = OperationEnum::DEBIT === $this->operation
+            ? -abs($this->totalPrice)
+            : abs($this->totalPrice);
     }
 
     public function getTicker(): ?Ticker

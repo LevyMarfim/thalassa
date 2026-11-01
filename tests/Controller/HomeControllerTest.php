@@ -10,6 +10,7 @@ use App\Enum\CurrencyEnum;
 use App\Enum\OperationEnum;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 final class HomeControllerTest extends WebTestCase
@@ -61,6 +62,31 @@ final class HomeControllerTest extends WebTestCase
     }
 
     /**
+     * A debit is money out, so the activity card shows it negative — the same
+     * direction the account balance sums with.
+     */
+    public function testHomeShowsDebitsAsNegativeAmounts(): void
+    {
+        $client = static::createClient();
+        $username = sprintf('home-debit-%s', uniqid());
+        $user = $this->createUser($username);
+        $client->loginUser($user);
+
+        $description = sprintf('DEBIT%s', strtoupper(substr(uniqid(), -6)));
+        $this->attachTransactionTo($user, $description, OperationEnum::DEBIT, 250.00);
+
+        $crawler = $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+
+        $row = $crawler->filter('section[aria-labelledby="activity-heading"] .type-list__row')->reduce(
+            static fn (Crawler $tr): bool => str_contains($tr->text(), $description)
+        );
+        self::assertCount(1, $row);
+        self::assertStringContainsString('-250,00', $row->text());
+    }
+
+    /**
      * A user with no transactions still gets the empty state rather than a
    * broken card.
      */
@@ -85,8 +111,12 @@ final class HomeControllerTest extends WebTestCase
      * each flush: $em->clear() detaches anything fetched before it, and a
      * detached association looks like an unmanaged new entity to persist().
      */
-    private function attachTransactionTo(User $owner, string $description): void
-    {
+    private function attachTransactionTo(
+        User $owner,
+        string $description,
+        OperationEnum $operation = OperationEnum::CREDIT,
+        float $totalPrice = 100.00,
+    ): void {
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $em->clear();
 
@@ -121,11 +151,11 @@ final class HomeControllerTest extends WebTestCase
         $transaction->setUser($user);
         $transaction->setAccount($account);
         $transaction->setOperationType($operationType);
-        $transaction->setOperation(OperationEnum::CREDIT);
+        $transaction->setOperation($operation);
         $transaction->setMovement(new \DateTime('2026-10-15'));
         $transaction->setLiquidation(new \DateTime('2026-10-17'));
         $transaction->setDescription($description);
-        $transaction->setTotalPrice(100.00);
+        $transaction->setTotalPrice($totalPrice);
 
         $em->persist($transaction);
         $em->flush();

@@ -50,9 +50,50 @@ final class TransactionControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/transactions');
 
         self::assertResponseIsSuccessful();
-        self::assertCount(1, $crawler->filter('form[name="transaction_form"]'));
+        // The create form lives on its own page now; the list only offers a
+        // link to it, so the table gets the full card.
+        self::assertCount(0, $crawler->filter('form[name="transaction_form"]'));
+        self::assertCount(1, $crawler->filter('.dash-header--split a.btn[href="/transactions/new"]'));
         self::assertSelectorTextContains('.tx-table', $transaction->getDescription());
         self::assertSelectorTextContains('.tx-table', '1.234,56');
+    }
+
+    /**
+     * Direction comes from the operation, not from the stored sign: a debit is
+     * money out, so the listing prints it negative — the same rule the balance
+     * query sums with. Credits stay positive.
+     */
+    public function testDebitTotalsRenderNegativeAndCreditTotalsPositive(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $debit = $this->uniqueDescription('SINAL-DEBITO');
+        $debitStoredNegative = $this->uniqueDescription('SINAL-DEBITO-NEG');
+        $credit = $this->uniqueDescription('SINAL-CREDITO');
+        $this->createTransaction($debit, 500.00, null, OperationEnum::DEBIT);
+        // The form accepts a signed value too; the operation still wins.
+        $this->createTransaction($debitStoredNegative, -500.00, null, OperationEnum::DEBIT);
+        $this->createTransaction($credit, 500.00, null, OperationEnum::CREDIT);
+
+        $crawler = $client->request('GET', '/transactions');
+
+        self::assertResponseIsSuccessful();
+
+        $totalOf = static function (Crawler $crawler, string $description): string {
+            $row = $crawler->filter('.tx-table tbody tr')->reduce(
+                static fn (Crawler $tr): bool => str_contains($tr->text(), $description)
+            );
+            self::assertCount(1, $row);
+
+            // Qty, Unit price and Total share the class; Total is last.
+            return trim($row->filter('td.tx-table__amount')->last()->text());
+        };
+
+        self::assertSame('-500,00', $totalOf($crawler, $debit));
+        self::assertSame('-500,00', $totalOf($crawler, $debitStoredNegative));
+        self::assertSame('500,00', $totalOf($crawler, $credit));
     }
 
     /**
@@ -103,7 +144,7 @@ final class TransactionControllerTest extends WebTestCase
         $data = $this->seedTransactionData();
         $description = $this->uniqueDescription('DATA-CRIADA');
 
-        $crawler = $client->request('GET', '/transactions');
+        $crawler = $client->request('GET', '/transactions/new');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[account]' => (string) $data['account']->getId(),
             'transaction_form[movement]' => '20/10/2026',
@@ -163,6 +204,178 @@ final class TransactionControllerTest extends WebTestCase
         self::assertCount(1, $crawler->filter('.tx-filter a[href="/transactions"]'));
     }
 
+    /**
+     * The listing no longer creates transactions: its card is a filter bar,
+     * and the create form moved to /transactions/new behind the Add button.
+     */
+    public function testIndexOffersFiltersAndAnAddButtonInsteadOfTheCreateForm(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $crawler = $client->request('GET', '/transactions');
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('form[name="transaction_form"]'));
+        $filterForm = $crawler->filter('form[name="transaction_filter"]');
+        self::assertCount(1, $filterForm);
+        // GET keeps a filtered list a shareable URL (and needs no CSRF token).
+        self::assertSame('get', strtolower($filterForm->attr('method')));
+        self::assertCount(1, $crawler->filter('.dash-header--split a.btn[href="/transactions/new"]'));
+
+        // Every criterion the controller understands has a control.
+        foreach (['account', 'operation', 'operationType', 'ticker', 'movementFrom', 'movementTo', 'description'] as $field) {
+            self::assertCount(
+                1,
+                $crawler->filter(sprintf('[name="transaction_filter[%s]"]', $field)),
+                sprintf('The %s filter is missing.', $field)
+            );
+        }
+    }
+
+    public function testNewPageRendersTheCreateForm(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $crawler = $client->request('GET', '/transactions/new');
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filter('form[name="transaction_form"]'));
+        self::assertCount(1, $crawler->filter('.card__back a[href="/transactions"]'));
+    }
+
+    public function testAnonymousNewRedirectsToLogin(): void
+    {
+        static::createClient()->request('GET', '/transactions/new');
+
+        self::assertResponseRedirects('/login');
+    }
+
+    public function testFilterFormNarrowsByAccount(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+
+        $descA = $this->uniqueDescription('FILTRO-FORM-A');
+        $descB = $this->uniqueDescription('FILTRO-FORM-B');
+        $this->createTransaction($descA, 10.00);
+        $this->createAccountWithTransaction($descB, 20.00);
+
+        $crawler = $client->request('GET', '/transactions');
+        $form = $crawler->filter('form[name="transaction_filter"]')->form([
+            'transaction_filter[account]' => (string) $data['account']->getId(),
+        ]);
+        $crawler = $client->submit($form);
+
+        self::assertResponseIsSuccessful();
+        $table = $crawler->filter('.tx-table');
+        self::assertStringContainsString($descA, $table->html());
+        self::assertStringNotContainsString($descB, $table->html());
+
+        // The applied value is still selected, so the URL is reproducible.
+        self::assertSame(
+            (string) $data['account']->getId(),
+            $crawler->filter('form[name="transaction_filter"]')->form()->get('transaction_filter[account]')->getValue()
+        );
+    }
+
+    public function testFilterFormNarrowsByOperationAndMovementDateRange(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $debit = $this->uniqueDescription('FILTRO-DEBITO');
+        $credit = $this->uniqueDescription('FILTRO-CREDITO');
+        $this->createTransaction($debit, 10.00, null, OperationEnum::DEBIT, '2026-10-15');
+        $this->createTransaction($credit, 20.00, null, OperationEnum::CREDIT, '2026-11-20');
+
+        // Operation: only the credit row survives.
+        $crawler = $client->request('GET', '/transactions');
+        $form = $crawler->filter('form[name="transaction_filter"]')->form([
+            'transaction_filter[operation]' => 'CREDIT',
+        ]);
+        $crawler = $client->submit($form);
+
+        self::assertResponseIsSuccessful();
+        $table = $crawler->filter('.tx-table');
+        self::assertStringContainsString($credit, $table->html());
+        self::assertStringNotContainsString($debit, $table->html());
+
+        // Date range: both bounds inclusive, so 15/10 matches 14..16 but the
+        // November row does not.
+        $crawler = $client->request('GET', '/transactions');
+        $form = $crawler->filter('form[name="transaction_filter"]')->form([
+            'transaction_filter[movementFrom]' => '14/10/2026',
+            'transaction_filter[movementTo]' => '16/10/2026',
+        ]);
+        $crawler = $client->submit($form);
+
+        self::assertResponseIsSuccessful();
+        $table = $crawler->filter('.tx-table');
+        self::assertStringContainsString($debit, $table->html());
+        self::assertStringNotContainsString($credit, $table->html());
+    }
+
+    public function testFilterFormNarrowsByDescriptionCaseInsensitively(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $match = $this->uniqueDescription('FILTRO-TEXTO');
+        $other = $this->uniqueDescription('OUTRO-TEXTO');
+        $this->createTransaction($match, 10.00);
+        $this->createTransaction($other, 20.00);
+
+        $crawler = $client->request('GET', '/transactions');
+        $form = $crawler->filter('form[name="transaction_filter"]')->form([
+            'transaction_filter[description]' => 'filtro-texto',
+        ]);
+        $crawler = $client->submit($form);
+
+        self::assertResponseIsSuccessful();
+        $table = $crawler->filter('.tx-table');
+        self::assertStringContainsString($match, $table->html());
+        self::assertStringNotContainsString($other, $table->html());
+    }
+
+    public function testFilterFormNarrowsByTicker(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $description = $this->uniqueDescription('FILTRO-TICKER');
+        $this->createTransaction($description, 10.00);
+
+        // A ticker that exists in the dropdown but is on none of this user's
+        // rows: the filter must yield the empty state, not the row.
+        $em = $this->entityManager();
+        $unused = new Ticker();
+        $unused->setTicker(sprintf('ZZ%s', strtoupper(substr(uniqid(), -5))));
+        $unused->setName('Unused ticker');
+        $em->persist($unused);
+        $em->flush();
+
+        $crawler = $client->request('GET', '/transactions');
+        $form = $crawler->filter('form[name="transaction_filter"]')->form([
+            'transaction_filter[ticker]' => (string) $unused->getId(),
+        ]);
+        $crawler = $client->submit($form);
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('.tx-table'));
+        self::assertCount(1, $crawler->filter('.empty-state'));
+        self::assertSelectorTextContains('.empty-state', 'No transactions match these filters.');
+        self::assertCount(1, $crawler->filter('.empty-state a[href="/transactions"]'));
+        self::assertStringNotContainsString($description, $crawler->text());
+    }
+
     public function testFilteredViewPreselectsTheAccountInTheForm(): void
     {
         $client = static::createClient();
@@ -171,6 +384,13 @@ final class TransactionControllerTest extends WebTestCase
         $accountA = $data['account'];
 
         $crawler = $client->request('GET', sprintf('/transactions?account=%d', $accountA->getId()));
+        self::assertResponseIsSuccessful();
+        self::assertCount(
+            1,
+            $crawler->filter(sprintf('.dash-header--split a.btn[href="/transactions/new?account=%d"]', $accountA->getId()))
+        );
+
+        $crawler = $client->request('GET', sprintf('/transactions/new?account=%d', $accountA->getId()));
 
         self::assertResponseIsSuccessful();
         $form = $crawler->filter('form[name="transaction_form"]')->form();
@@ -185,7 +405,7 @@ final class TransactionControllerTest extends WebTestCase
         $accountA = $data['account'];
         $description = $this->uniqueDescription('FILTRO-CRIADO');
 
-        $crawler = $client->request('GET', sprintf('/transactions?account=%d', $accountA->getId()));
+        $crawler = $client->request('GET', sprintf('/transactions/new?account=%d', $accountA->getId()));
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[account]' => (string) $accountA->getId(),
             'transaction_form[movement]' => '20/10/2026',
@@ -314,7 +534,7 @@ final class TransactionControllerTest extends WebTestCase
         $data = $this->seedTransactionData();
         $description = $this->uniqueDescription('VENDA');
 
-        $crawler = $client->request('GET', '/transactions');
+        $crawler = $client->request('GET', '/transactions/new');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[account]' => (string) $data['account']->getId(),
             'transaction_form[movement]' => '20/10/2026',
@@ -338,6 +558,101 @@ final class TransactionControllerTest extends WebTestCase
         self::assertEqualsWithDelta(2500.75, $created->getTotalPrice(), 0.001);
     }
 
+    /**
+     * The form takes a plain magnitude ("500.00"); the write path stores the
+     * direction in the column so any SUM(total_price) is correct by itself.
+     */
+    public function testCreateDebitTransactionStoresNegativeTotal(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+        $description = $this->uniqueDescription('COMPRA');
+
+        $crawler = $client->request('GET', '/transactions/new');
+        $form = $crawler->filter('form[name="transaction_form"]')->form([
+            'transaction_form[account]' => (string) $data['account']->getId(),
+            'transaction_form[movement]' => '20/10/2026',
+            'transaction_form[liquidation]' => '22/10/2026',
+            'transaction_form[operation]' => 'DEBIT',
+            'transaction_form[operationType]' => (string) $data['operationType']->getId(),
+            'transaction_form[ticker]' => (string) $data['ticker']->getId(),
+            'transaction_form[description]' => $description,
+            'transaction_form[totalPrice]' => '500.00',
+        ]);
+        $client->submit($form);
+
+        self::assertResponseRedirects('/transactions');
+
+        $created = $this->findTransaction($description);
+        self::assertNotNull($created);
+        self::assertSame(OperationEnum::DEBIT, $created->getOperation());
+        self::assertEqualsWithDelta(-500.00, $created->getTotalPrice(), 0.001);
+    }
+
+    /**
+     * On the create form the liquidation date is optional: leaving it blank
+     * means "same day as the movement", not a validation error.
+     */
+    public function testCreateTransactionFillsBlankLiquidationFromMovement(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+        $description = $this->uniqueDescription('LIQUIDACAO');
+
+        $crawler = $client->request('GET', '/transactions/new');
+        self::assertSelectorTextContains('label[for="transaction_form_liquidation"]', 'optional');
+        self::assertSelectorTextContains('#transaction_form_liquidation_help', 'movement date');
+
+        $form = $crawler->filter('form[name="transaction_form"]')->form([
+            'transaction_form[account]' => (string) $data['account']->getId(),
+            'transaction_form[movement]' => '20/10/2026',
+            'transaction_form[liquidation]' => '',
+            'transaction_form[operation]' => 'CREDIT',
+            'transaction_form[operationType]' => (string) $data['operationType']->getId(),
+            'transaction_form[description]' => $description,
+            'transaction_form[totalPrice]' => '10.00',
+        ]);
+        $client->submit($form);
+
+        self::assertResponseRedirects('/transactions');
+
+        $created = $this->findTransaction($description);
+        self::assertNotNull($created);
+        self::assertSame('2026-10-20', $created->getMovement()?->format('Y-m-d'));
+        self::assertSame('2026-10-20', $created->getLiquidation()?->format('Y-m-d'));
+    }
+
+    /**
+     * An explicit liquidation date is never overwritten by the fallback.
+     */
+    public function testCreateTransactionKeepsAnExplicitLiquidationDate(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+        $description = $this->uniqueDescription('LIQUIDACAO-DATA');
+
+        $crawler = $client->request('GET', '/transactions/new');
+        $form = $crawler->filter('form[name="transaction_form"]')->form([
+            'transaction_form[account]' => (string) $data['account']->getId(),
+            'transaction_form[movement]' => '20/10/2026',
+            'transaction_form[liquidation]' => '25/10/2026',
+            'transaction_form[operation]' => 'CREDIT',
+            'transaction_form[operationType]' => (string) $data['operationType']->getId(),
+            'transaction_form[description]' => $description,
+            'transaction_form[totalPrice]' => '10.00',
+        ]);
+        $client->submit($form);
+
+        self::assertResponseRedirects('/transactions');
+
+        $created = $this->findTransaction($description);
+        self::assertNotNull($created);
+        self::assertSame('2026-10-25', $created->getLiquidation()?->format('Y-m-d'));
+    }
+
     public function testCreateTransactionWithoutTicker(): void
     {
         $client = static::createClient();
@@ -345,7 +660,7 @@ final class TransactionControllerTest extends WebTestCase
         $data = $this->seedTransactionData();
         $description = $this->uniqueDescription('CONTA');
 
-        $crawler = $client->request('GET', '/transactions');
+        $crawler = $client->request('GET', '/transactions/new');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[account]' => (string) $data['account']->getId(),
             'transaction_form[movement]' => '20/10/2026',
@@ -376,7 +691,7 @@ final class TransactionControllerTest extends WebTestCase
         $data = $this->seedTransactionData();
         $description = $this->uniqueDescription('FRAC');
 
-        $crawler = $client->request('GET', '/transactions');
+        $crawler = $client->request('GET', '/transactions/new');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[account]' => (string) $data['account']->getId(),
             'transaction_form[movement]' => '20/10/2026',
@@ -419,7 +734,7 @@ final class TransactionControllerTest extends WebTestCase
         $data = $this->seedTransactionData();
         $description = $this->uniqueDescription('SEMFRAC');
 
-        $crawler = $client->request('GET', '/transactions');
+        $crawler = $client->request('GET', '/transactions/new');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[account]' => (string) $data['account']->getId(),
             'transaction_form[movement]' => '20/10/2026',
@@ -456,7 +771,7 @@ final class TransactionControllerTest extends WebTestCase
         $data = $this->seedTransactionData();
         $before = $this->countTransactions();
 
-        $crawler = $client->request('GET', '/transactions');
+        $crawler = $client->request('GET', '/transactions/new');
         $form = $crawler->filter('form[name="transaction_form"]')->form();
 
         // Crawler::ChoiceFormField refuses to hold a value that isn't one of
@@ -479,7 +794,7 @@ final class TransactionControllerTest extends WebTestCase
         $client->loginUser($this->createUser());
         $before = $this->countTransactions();
 
-        $crawler = $client->request('GET', '/transactions');
+        $crawler = $client->request('GET', '/transactions/new');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[description]' => '',
             'transaction_form[totalPrice]' => '',
@@ -503,7 +818,7 @@ final class TransactionControllerTest extends WebTestCase
         $client->loginUser($this->createUser());
         $this->seedTransactionData();
 
-        $crawler = $client->request('GET', '/transactions');
+        $crawler = $client->request('GET', '/transactions/new');
 
         self::assertResponseIsSuccessful();
 
@@ -527,7 +842,7 @@ final class TransactionControllerTest extends WebTestCase
         $client->loginUser($this->createUser());
         $this->seedTransactionData();
 
-        $crawler = $client->request('GET', '/transactions');
+        $crawler = $client->request('GET', '/transactions/new');
 
         self::assertResponseIsSuccessful();
         self::assertCount(2, $crawler->filter('input[data-controller="date-picker"]'));
@@ -549,7 +864,7 @@ final class TransactionControllerTest extends WebTestCase
         $data = $this->seedTransactionData();
         $before = $this->countTransactions();
 
-        $crawler = $client->request('GET', '/transactions');
+        $crawler = $client->request('GET', '/transactions/new');
         $form = $crawler->filter('form[name="transaction_form"]')->form([
             'transaction_form[account]' => (string) $data['account']->getId(),
             'transaction_form[movement]' => '2026-10-20',
@@ -589,6 +904,9 @@ final class TransactionControllerTest extends WebTestCase
         // it as 15/out/2026 client-side; the fixture uses 2026-10-15/17).
         self::assertSame('15/10/2026', $crawler->filter('input[name="transaction_form[movement]"]')->attr('value'));
         self::assertSame('17/10/2026', $crawler->filter('input[name="transaction_form[liquidation]"]')->attr('value'));
+        // The fixture is a debit, stored negative; the form shows what is stored
+        // (localised with a comma, as NumberType renders it).
+        self::assertSame('-1234,56', $crawler->filter('input[name="transaction_form[totalPrice]"]')->attr('value'));
     }
 
     public function testEditTransactionSuccess(): void
@@ -609,7 +927,10 @@ final class TransactionControllerTest extends WebTestCase
         self::assertResponseRedirects('/transactions');
         $updated = $this->findTransaction($newDescription);
         self::assertNotNull($updated);
-        self::assertEqualsWithDelta(1300.00, $updated->getTotalPrice(), 0.001);
+        // The fixture is a DEBIT, so the write path stores the total as a
+        // negative amount (credits stay positive).
+        self::assertSame(OperationEnum::DEBIT, $updated->getOperation());
+        self::assertEqualsWithDelta(-1300.00, $updated->getTotalPrice(), 0.001);
         self::assertNull($this->findTransaction($transaction->getDescription()));
     }
 
@@ -788,8 +1109,13 @@ final class TransactionControllerTest extends WebTestCase
         return $account;
     }
 
-    private function createTransaction(string $description, float $totalPrice, ?User $owner = null): Transaction
-    {
+    private function createTransaction(
+        string $description,
+        float $totalPrice,
+        ?User $owner = null,
+        OperationEnum $operation = OperationEnum::DEBIT,
+        string $movement = '2026-10-15',
+    ): Transaction {
         $em = $this->entityManager();
 
         $user = $em->getRepository(User::class)->find(($owner ?? $this->currentUser)?->getId());
@@ -824,9 +1150,9 @@ final class TransactionControllerTest extends WebTestCase
         $transaction = new Transaction();
         $transaction->setUser($user);
         $transaction->setAccount($account);
-        $transaction->setMovement(new \DateTime('2026-10-15'));
+        $transaction->setMovement(new \DateTime($movement));
         $transaction->setLiquidation(new \DateTime('2026-10-17'));
-        $transaction->setOperation(OperationEnum::DEBIT);
+        $transaction->setOperation($operation);
         $transaction->setOperationType($operationType);
         $transaction->setTicker($ticker);
         $transaction->setDescription($description);

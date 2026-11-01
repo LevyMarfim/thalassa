@@ -257,6 +257,7 @@ final class AccountControllerTest extends WebTestCase
      * Regression: a DEBIT row stored as a negative totalPrice (-500) was
      * negated again by the balance query, flipping it to +500 and inflating
      * the total. The operation enum must be the only source of direction.
+     * This is now the encoding the write path produces for a debit.
      */
     public function testBalanceSubtractsNegativeStoredDebit(): void
     {
@@ -280,17 +281,24 @@ final class AccountControllerTest extends WebTestCase
     }
 
     /**
-     * The opposite encoding: a DEBIT stored as a positive magnitude. Both
-     * spellings must land on the same balance.
+     * The write path now normalises a debit to a negative total, so a positive
+     * one can only come from rows written before that change. The balance query
+     * must keep tolerating that legacy encoding: both spellings land on -400.
      */
-    public function testBalanceSubtractsPositiveStoredDebit(): void
+    public function testBalanceSubtractsLegacyPositiveStoredDebit(): void
     {
         $client = static::createClient();
         $client->loginUser($this->createUser());
         $account = $this->createAccount($this->uniqueName('Nubank'));
 
         $this->attachTransactionTo($account, OperationEnum::CREDIT, 100.00);
-        $this->attachTransactionTo($account, OperationEnum::DEBIT, 500.00);
+        $legacyDebit = $this->attachTransactionTo($account, OperationEnum::DEBIT, 500.00);
+
+        // Bypass the setter, which would have stored -500.
+        $this->entityManager()->getConnection()->executeStatement(
+            'UPDATE app_transaction SET total_price = :total WHERE id = :id',
+            ['total' => 500.00, 'id' => $legacyDebit->getId()]
+        );
 
         $client->request('GET', '/accounts');
 
@@ -394,7 +402,7 @@ final class AccountControllerTest extends WebTestCase
         Account $account,
         OperationEnum $operation = OperationEnum::CREDIT,
         float $totalPrice = 100.00,
-    ): void {
+    ): Transaction {
         $em = $this->entityManager();
         $em->clear();
 
@@ -420,6 +428,8 @@ final class AccountControllerTest extends WebTestCase
         $em->persist($transaction);
         $em->flush();
         $em->clear();
+
+        return $transaction;
     }
 
     /**

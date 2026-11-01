@@ -19,6 +19,8 @@ use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\Extension\Core\Type\NumberType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
+use Symfony\Component\Form\FormEvent;
+use Symfony\Component\Form\FormEvents;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
@@ -28,6 +30,7 @@ final class TransactionFormType extends AbstractType
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $user = $options['data'] instanceof Transaction ? $options['data']->getUser() : null;
+        $fillLiquidation = $options['fill_liquidation_from_movement'];
 
         $builder
             ->add('account', EntityType::class, [
@@ -76,10 +79,15 @@ final class TransactionFormType extends AbstractType
                 'constraints' => [new NotBlank(message: 'Please choose a movement date.')],
             ])
             ->add('liquidation', DateType::class, [
-                'label' => 'Liquidation date',
+                'label' => $fillLiquidation ? 'Liquidation date (optional)' : 'Liquidation date',
                 'widget' => 'single_text',
                 'html5' => false,
                 'format' => 'dd/MM/yyyy',
+                // On the create form the field may be left blank: a PRE_SUBMIT
+                // listener below copies the movement date into it, so it is not
+                // required in the browser or in validation.
+                'required' => !$fillLiquidation,
+                'help' => $fillLiquidation ? 'If left empty, the movement date is used.' : null,
                 'invalid_message' => 'Please enter the liquidation date as dd/mm/yyyy (e.g. 25/10/2026).',
                 'attr' => [
                     'class' => 'form-input',
@@ -183,12 +191,37 @@ final class TransactionFormType extends AbstractType
                 ],
                 'constraints' => [new NotBlank(message: 'Please enter a total price.')],
             ]);
+
+        if ($fillLiquidation) {
+            $builder->addEventListener(FormEvents::PRE_SUBMIT, static function (FormEvent $event): void {
+                $data = $event->getData();
+                if (!\is_array($data)) {
+                    return;
+                }
+
+                $movement = $data['movement'] ?? null;
+                $liquidation = $data['liquidation'] ?? null;
+
+                // Only fill a genuinely blank field. A malformed liquidation
+                // keeps its own parse error instead of being overwritten.
+                if ((null === $liquidation || '' === $liquidation) && \is_string($movement) && '' !== $movement) {
+                    $data['liquidation'] = $movement;
+                    $event->setData($data);
+                }
+            });
+        }
     }
 
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([
             'data_class' => Transaction::class,
+            // Create form only: a blank liquidation defaults to the movement
+            // date. Edit keeps the field required so an update cannot silently
+            // move the settlement date.
+            'fill_liquidation_from_movement' => false,
         ]);
+
+        $resolver->setAllowedTypes('fill_liquidation_from_movement', 'bool');
     }
 }

@@ -20,7 +20,15 @@ services:
       FRANKENPHP_CONFIG: |-
         max_requests 500
         worker ./public/index.php
-      FRANKENPHP_RESET_KERNEL: ${FRANKENPHP_RESET_KERNEL:-1}
+      # Keep one booted kernel per worker thread. Cloning the kernel after
+      # every request (the "1" setting) drops the container without shutting
+      # it down, so each request opens a fresh PostgreSQL connection that is
+      # only released once the GC breaks the container cycle. Under load that
+      # lag exhausts the server's connection slots ("too many clients
+      # already"). Stateful services are still reset between requests through
+      # the kernel.reset tag (services_resetter), including Doctrine's
+      # ManagerRegistry, which clears the EntityManager.
+      FRANKENPHP_RESET_KERNEL: ${FRANKENPHP_RESET_KERNEL:-0}
     depends_on:
       database:
         condition: service_healthy
