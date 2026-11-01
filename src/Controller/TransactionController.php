@@ -3,13 +3,13 @@
 
 namespace App\Controller;
 
+use App\Dto\TransactionFilter;
 use App\Entity\Account;
 use App\Entity\Transaction;
 use App\Entity\User;
+use App\Form\TransactionFilterType;
 use App\Form\TransactionFormType;
 use App\Repository\AccountRepository;
-use App\Repository\OperationTypeRepository;
-use App\Repository\TickerRepository;
 use App\Repository\TransactionRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -20,41 +20,60 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/transactions')]
 final class TransactionController extends AbstractController
 {
-    #[Route('', name: 'app_transactions', methods: ['GET', 'POST'])]
+    #[Route('', name: 'app_transactions', methods: ['GET'])]
     public function index(
         Request $request,
-        EntityManagerInterface $entityManager,
         AccountRepository $accountRepository,
         TransactionRepository $transactionRepository,
-        OperationTypeRepository $operationTypeRepository,
-        TickerRepository $tickerRepository,
     ): Response {
         $user = $this->getUser();
         \assert($user instanceof User);
 
-        // Optional ?account= filter, linked from the accounts list. Anything
-        // that is not an account of the current user lands here as a 404 —
-        // never a 403, which would confirm the id exists.
-        $account = null;
-        if ($request->query->has('account')) {
-            $raw = $request->query->get('account');
-            $account = \is_string($raw) && ctype_digit($raw)
-                ? $accountRepository->find((int) $raw)
-                : null;
+        $filter = new TransactionFilter();
 
-            if (!$account instanceof Account || $account->getUser()?->getId() !== $user->getId()) {
-                throw $this->createNotFoundException('Account not found.');
-            }
+        // Backwards-compatible ?account= link from the accounts list. It seeds
+        // the filter form; submitting the form itself produces
+        // transaction_filter[account]=… instead.
+        if ($request->query->has('account')) {
+            $filter->setAccount($this->resolveAccount($request, $accountRepository, $user));
         }
 
-        // A transaction started from a filtered view belongs to that account.
+        $filterForm = $this->createForm(TransactionFilterType::class, $filter, ['user' => $user]);
+        $filterForm->handleRequest($request);
+
+        return $this->render('transactions/index.html.twig', [
+            'filterForm' => $filterForm,
+            'transactions' => $transactionRepository->findByUser($user, $filter),
+            'filteredAccount' => $filter->getAccount(),
+        ]);
+    }
+
+    #[Route('/new', name: 'app_transactions_new', methods: ['GET', 'POST'])]
+    public function new(
+        Request $request,
+        EntityManagerInterface $entityManager,
+        AccountRepository $accountRepository,
+    ): Response {
+        $user = $this->getUser();
+        \assert($user instanceof User);
+
+        // Arriving from a filtered list pre-selects that account; the query
+        // parameter is also used below to return to the same filtered view.
+        $account = null;
+        if ($request->query->has('account')) {
+            $account = $this->resolveAccount($request, $accountRepository, $user);
+        }
+
         $transaction = new Transaction();
         $transaction->setUser($user);
         if (null !== $account) {
             $transaction->setAccount($account);
         }
 
-        $form = $this->createForm(TransactionFormType::class, $transaction);
+        $form = $this->createForm(TransactionFormType::class, $transaction, [
+            // A blank liquidation date falls back to the movement date.
+            'fill_liquidation_from_movement' => true,
+        ]);
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
             $entityManager->persist($transaction);
@@ -69,12 +88,8 @@ final class TransactionController extends AbstractController
             );
         }
 
-        return $this->render('transactions/index.html.twig', [
+        return $this->render('transactions/new.html.twig', [
             'form' => $form,
-            'transactions' => $transactionRepository->findByUser($user, $account),
-            'filteredAccount' => $account,
-            'operationTypes' => $operationTypeRepository->findBy([], ['type' => 'ASC']),
-            'tickers' => $tickerRepository->findBy([], ['ticker' => 'ASC']),
         ]);
     }
 
@@ -118,6 +133,25 @@ final class TransactionController extends AbstractController
         $this->addFlash('success', 'Transaction removed.');
 
         return $this->redirectToRoute('app_transactions');
+    }
+
+    /**
+     * Resolves the optional ?account= quick filter. Anything that is not an
+     * account of the current user is a 404 — never a 403, which would confirm
+     * the id exists.
+     */
+    private function resolveAccount(Request $request, AccountRepository $accountRepository, User $user): Account
+    {
+        $raw = $request->query->get('account');
+        $account = \is_string($raw) && ctype_digit($raw)
+            ? $accountRepository->find((int) $raw)
+            : null;
+
+        if (!$account instanceof Account || $account->getUser()?->getId() !== $user->getId()) {
+            throw $this->createNotFoundException('Account not found.');
+        }
+
+        return $account;
     }
 
     /**

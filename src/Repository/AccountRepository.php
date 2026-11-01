@@ -64,11 +64,13 @@ class AccountRepository extends ServiceEntityRepository
      * DEBIT subtracts — a single CASE expression, aggregated in SQL rather than
      * hydrating every transaction into PHP.
      *
-     * ABS() matters: totalPrice may be stored either as a positive magnitude or
-     * already signed (the form accepts both — nothing forces a sign). Taking the
-     * magnitude and letting the operation enum supply the direction makes both
-     * encodings agree. Without it, a DEBIT stored as -500 was negated into +500,
-     * silently reversing the sign and inflating the total.
+     * Writes store the sign already (Transaction::setTotalPrice() makes a debit
+     * negative), so in principle SUM(t.totalPrice) would do. ABS() is kept as
+     * tolerance for rows written before that normalisation or imported from
+     * elsewhere: taking the magnitude and letting the operation enum supply the
+     * direction makes both encodings agree. Without it, a DEBIT stored as -500
+     * was negated into +500, silently reversing the sign and inflating the
+     * total. Version20261031120000 backfills the legacy rows.
      *
      * Uses the enum's string backing values rather than the PHP enum cases,
      * because DQL cannot bind an enum case into a comparison.

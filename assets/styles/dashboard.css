@@ -289,6 +289,17 @@ span.dash-nav__item { cursor: default; }
     color: var(--color-text-muted);
 }
 
+/* Header with a primary action on the right (e.g. "Add transaction"). */
+.dash-header--split {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.dash-header--split .btn { flex-shrink: 0; }
+
 .dash-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -366,6 +377,13 @@ span.dash-nav__item { cursor: default; }
     color: var(--color-text);
 }
 
+/* Field hint rendered by form_help() (e.g. "defaults to the movement date"). */
+.help-text {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    line-height: 1.35;
+}
+
 .form-input {
     width: 100%;
     padding: 12px 14px;
@@ -440,6 +458,18 @@ span.dash-nav__item { cursor: default; }
 .btn--primary:hover { background: var(--color-primary-dark); }
 .btn--primary:active { transform: translateY(1px); }
 .btn--block { width: 100%; margin-top: 6px; }
+
+/* Secondary action that sits next to a primary button (e.g. "Clear"). */
+.btn--ghost {
+    background: transparent;
+    border-color: var(--color-border);
+    color: var(--color-text-muted);
+}
+
+.btn--ghost:hover {
+    background: #f8fafc;
+    color: var(--color-text);
+}
 
 /* -------------------- Alerts -------------------- */
 .alert {
@@ -699,6 +729,17 @@ a.type-list__name:hover {
 
 /* Hug the label instead of stretching a full-width bar across the card. */
 .tx-form .btn { justify-self: start; }
+
+/* Submit + clear row for the filter form: one full-width grid row. */
+.tx-form__actions {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.tx-form__actions .btn { justify-self: auto; }
 
 .tx-form .form-field:has(.form-errors),
 .tx-form .form-field:has(ul) { align-self: stretch; }
