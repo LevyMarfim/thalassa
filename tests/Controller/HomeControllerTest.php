@@ -107,6 +107,184 @@ final class HomeControllerTest extends WebTestCase
     }
 
     /**
+     * The server hands Chart.js a cumulative series: a transaction before the
+     * 12-month window is carried into the first plotted month, a debit lowers
+     * the line, and a later credit raises it. Stimulus turns the JSON into an
+     * interactive chart on the client, so the data attribute is the contract
+     * this test can verify.
+     */
+    public function testHomePlotsMonthEndBalancesPerAccount(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser(sprintf('home-chart-%s', uniqid()));
+        $client->loginUser($user);
+
+        $firstOfMonth = (new \DateTimeImmutable('now', new \DateTimeZone('America/Sao_Paulo')))
+            ->modify('first day of this month');
+        $lastMonth = $firstOfMonth->modify('-1 month');
+        $beforeWindow = $firstOfMonth->modify('-13 months');
+
+        $account = $this->seedChartAccount($user, CurrencyEnum::BRL, [
+            [$beforeWindow->format('Y-m-10'), OperationEnum::CREDIT, 1000.00],
+            [$lastMonth->format('Y-m-15'), OperationEnum::DEBIT, 200.00],
+            [$firstOfMonth->format('Y-m-05'), OperationEnum::CREDIT, 50.00],
+        ]);
+
+        $crawler = $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#chart-heading', 'Account value by month');
+        self::assertSelectorTextContains('.chart-summary', '12 months');
+        self::assertSame(
+            '12M',
+            $crawler->filter('.chart-panel')->first()->filter('.chart-range__button[aria-pressed="true"]')->text(),
+        );
+
+        $data = $this->panelData($crawler, 'Real (BRL)');
+        self::assertSame('BRL', $data['currency']);
+        self::assertSame('R$', $data['symbol']);
+        self::assertCount(12, $data['labels']);
+        self::assertCount(1, $data['datasets']);
+
+        $dataset = $data['datasets'][0];
+        self::assertSame($account->getId(), $dataset['accountId']);
+        self::assertSame($account->getName(), $dataset['label']);
+        self::assertMatchesRegularExpression('/^#[0-9a-f]{6}$/', $dataset['color']);
+
+        // Opening 1.000 carried through the ten months before the debit, then
+        // 800 after the debit, then 850 after the credit.
+        self::assertSame(
+            [...array_fill(0, 10, 1000.0), 800.0, 850.0],
+            array_map(static fn ($value): float => (float) $value, $dataset['data']),
+        );
+    }
+
+    public function testHomeShowsEmptyChartWhenNoTransactions(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser(sprintf('home-chart-empty-%s', uniqid())));
+
+        $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains(
+            'section[aria-labelledby="chart-heading"] .empty-state',
+            'No account history yet.'
+        );
+    }
+
+    /**
+     * A BRL line and a USD line on the same axis would look comparable when
+     * they are not, so each currency gets its own panel and scale.
+     */
+    public function testHomeKeepsCurrenciesOnSeparateChartPanels(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser(sprintf('home-chart-curr-%s', uniqid()));
+        $client->loginUser($user);
+
+        $date = (new \DateTimeImmutable('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-05');
+        $brl = $this->seedChartAccount($user, CurrencyEnum::BRL, [[$date, OperationEnum::CREDIT, 500.00]]);
+        $usd = $this->seedChartAccount($user, CurrencyEnum::USD, [[$date, OperationEnum::CREDIT, 90.00]]);
+
+        $crawler = $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(2, $crawler->filter('.chart-panel'));
+
+        $captions = implode(' | ', $crawler->filter('.chart-panel figcaption')->each(
+            static fn (Crawler $caption): string => $caption->text()
+        ));
+        self::assertStringContainsString('Real (BRL)', $captions);
+        self::assertStringContainsString('US Dollar (USD)', $captions);
+
+        // Each panel carries only its own currency's accounts: a BRL value
+        // must not leak into the USD panel or vice versa.
+        $brlData = $this->panelData($crawler, 'Real (BRL)');
+        $usdData = $this->panelData($crawler, 'US Dollar (USD)');
+
+        self::assertSame('BRL', $brlData['currency']);
+        self::assertSame('R$', $brlData['symbol']);
+        self::assertSame([$brl->getId()], array_column($brlData['datasets'], 'accountId'));
+
+        self::assertSame('USD', $usdData['currency']);
+        self::assertSame('US$', $usdData['symbol']);
+        self::assertSame([$usd->getId()], array_column($usdData['datasets'], 'accountId'));
+        self::assertSame(90.0, (float) $usdData['datasets'][0]['data'][11]);
+    }
+
+    /**
+     * Reads the JSON a chart panel hands to its Stimulus controller, selecting
+     * the panel by currency title.
+     *
+     * @return array<string, mixed>
+     */
+    private function panelData(Crawler $crawler, string $title): array
+    {
+        $panel = $crawler->filter('.chart-panel')->reduce(
+            static fn (Crawler $panel): bool => str_contains($panel->filter('figcaption')->text(), $title)
+        );
+        self::assertCount(1, $panel);
+
+        $json = $panel->attr('data-balance-chart-data-value');
+        self::assertNotNull($json);
+
+        return json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Creates one account and one transaction per [date, operation, amount]
+     * row. Re-fetches the account after clear() so the caller gets a detached
+     * entity with a usable id, the same pattern as attachTransactionTo().
+     *
+     * @param list<array{0: string, 1: OperationEnum, 2: float}> $movements
+     */
+    private function seedChartAccount(User $owner, CurrencyEnum $currency, array $movements): Account
+    {
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $em->clear();
+
+        $user = $em->getRepository(User::class)->find($owner->getId());
+        \assert($user instanceof User);
+
+        $account = new Account();
+        $account->setUser($user);
+        $account->setName(sprintf('CHART%s', strtoupper(substr(uniqid(), -6))));
+        $account->setCurrency($currency);
+        $em->persist($account);
+        $em->flush();
+
+        $operationType = $em->getRepository(OperationType::class)->findOneBy([], ['id' => 'ASC']);
+        if (!$operationType instanceof OperationType) {
+            $operationType = new OperationType();
+            $operationType->setType(sprintf('CHARTX%s', strtoupper(substr(uniqid(), -6))));
+            $em->persist($operationType);
+            $em->flush();
+        }
+
+        foreach ($movements as [$date, $operation, $amount]) {
+            $transaction = new Transaction();
+            $transaction->setUser($user);
+            $transaction->setAccount($account);
+            $transaction->setOperationType($operationType);
+            $transaction->setOperation($operation);
+            $transaction->setMovement(new \DateTime($date));
+            $transaction->setLiquidation(new \DateTime($date));
+            $transaction->setDescription(sprintf('Chart %s', $date));
+            $transaction->setTotalPrice($amount);
+            $em->persist($transaction);
+        }
+
+        $em->flush();
+        $em->clear();
+
+        $saved = $em->getRepository(Account::class)->find($account->getId());
+        \assert($saved instanceof Account);
+
+        return $saved;
+    }
+
+    /**
      * Builds one transaction owned by $owner. Every entity is re-fetched after
      * each flush: $em->clear() detaches anything fetched before it, and a
      * detached association looks like an unmanaged new entity to persist().

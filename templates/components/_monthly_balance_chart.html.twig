@@ -1,0 +1,38 @@
+{# templates/components/_monthly_balance_chart.html.twig
+   One currency's month-end balances as an interactive Chart.js line chart.
+   Expects: chart — the array produced by App\Chart\MonthlyBalanceChartBuilder.
+   The data is JSON in a Stimulus value; assets/controllers/balance_chart_controller.js
+   owns every interaction (hover tooltip + crosshair, legend toggles, range buttons). #}
+<figure class="chart-panel"
+        data-controller="balance-chart"
+        data-balance-chart-data-value="{{ chart|json_encode|e('html_attr') }}">
+    <figcaption>
+        <span>{{ chart.title }}</span>
+        <span class="chart-range" role="group" aria-label="Time range">
+            {% for range in [3, 6, 12, 24, 48] %}
+                <button type="button"
+                        class="chart-range__button"
+                        data-action="balance-chart#showRange"
+                        data-balance-chart-target="rangeButton"
+                        data-balance-chart-range-param="{{ range }}"
+                        aria-pressed="{{ range == chart.labels|length ? 'true' : 'false' }}">{{ range }}M</button>
+            {% endfor %}
+        </span>
+    </figcaption>
+
+    <div class="chart-canvas-wrap">
+        <canvas data-balance-chart-target="canvas"
+                role="img"
+                aria-label="Month-end balance of {{ chart.title }} accounts over the last {{ chart.labels|length }} months"></canvas>
+    </div>
+
+    <p class="chart-summary" data-balance-chart-target="summary" aria-live="polite">
+        {{ chart.labels|length }} months ·
+        {{ chart.datasets|length }} {{ chart.datasets|length == 1 ? 'account' : 'accounts' }} ·
+        click a legend item to hide a series
+    </p>
+
+    <noscript>
+        <p class="chart-noscript">Enable JavaScript to see the interactive chart.</p>
+    </noscript>
+</figure>

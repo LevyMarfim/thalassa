@@ -100,6 +100,109 @@ class AccountRepository extends ServiceEntityRepository
         return $balances;
     }
 
+    /**
+     * Month-end balances for every account that has activity on or before the
+     * end of the current month.
+     *
+     * Unlike findBalancesByUser(), which answers "what is the balance now",
+     * this one answers "what was the balance at the end of each month". The
+     * opening balance is the signed sum of everything before the first month
+     * of the window, so the first plotted point already carries all older
+     * activity instead of starting the line at zero.
+     *
+     * The grouping is done in SQL with PostgreSQL's TO_CHAR because DQL has no
+     * date_trunc()/month-bucket function. Both queries join the account table
+     * and filter on its owner, never on the request input, so one user's
+     * ledger cannot leak into another's chart.
+     *
+     * @param int $months Number of calendar months to return, ending with the current one
+     *
+     * @return array{
+     *     months: list<string>,
+     *     balances: array<int, list<float>>,
+     * } months are Y-m keys in chronological order; balances maps account id
+     *   to one float per month (balance at that month's end)
+     */
+    public function findMonthlyBalancesByUser(User $user, int $months = 12): array
+    {
+        $months = max(1, $months);
+        $timezone = new \DateTimeZone('America/Sao_Paulo');
+        $currentMonth = (new \DateTimeImmutable('now', $timezone))
+            ->modify('first day of this month')
+            ->setTime(0, 0);
+        $firstMonth = $currentMonth->modify(\sprintf('-%d months', $months - 1));
+        $lastDay = $currentMonth->modify('last day of this month');
+
+        $monthKeys = [];
+        $cursor = $firstMonth;
+        for ($i = 0; $i < $months; ++$i) {
+            $monthKeys[] = $cursor->format('Y-m');
+            $cursor = $cursor->modify('first day of next month');
+        }
+
+        $connection = $this->getEntityManager()->getConnection();
+        // A debit is stored negative, but ABS() keeps this correct for legacy
+        // rows the same way findBalancesByUser() does.
+        $signedTotal = 'SUM(CASE WHEN t.operation = :credit THEN ABS(t.total_price) ELSE -ABS(t.total_price) END)';
+
+        $openingRows = $connection->executeQuery(
+            <<<SQL
+                SELECT t.account_id AS account_id, $signedTotal AS balance
+                FROM app_transaction t
+                INNER JOIN app_account a ON a.id = t.account_id
+                WHERE a.user_id = :user AND t.movement < :start
+                GROUP BY t.account_id
+                SQL,
+            [
+                'credit' => OperationEnum::CREDIT->value,
+                'user' => $user->getId(),
+                'start' => $firstMonth->format('Y-m-d'),
+            ],
+        )->fetchAllAssociative();
+
+        $monthlyRows = $connection->executeQuery(
+            <<<SQL
+                SELECT t.account_id AS account_id,
+                       TO_CHAR(t.movement, 'YYYY-MM') AS month_key,
+                       $signedTotal AS net
+                FROM app_transaction t
+                INNER JOIN app_account a ON a.id = t.account_id
+                WHERE a.user_id = :user AND t.movement >= :start AND t.movement <= :end
+                GROUP BY t.account_id, TO_CHAR(t.movement, 'YYYY-MM')
+                SQL,
+            [
+                'credit' => OperationEnum::CREDIT->value,
+                'user' => $user->getId(),
+                'start' => $firstMonth->format('Y-m-d'),
+                'end' => $lastDay->format('Y-m-d'),
+            ],
+        )->fetchAllAssociative();
+
+        $opening = [];
+        foreach ($openingRows as $row) {
+            $opening[(int) $row['account_id']] = (float) $row['balance'];
+        }
+
+        $nets = [];
+        foreach ($monthlyRows as $row) {
+            $nets[(int) $row['account_id']][$row['month_key']] = (float) $row['net'];
+        }
+
+        $balances = [];
+        $accountIds = array_unique([...array_keys($opening), ...array_keys($nets)]);
+        foreach ($accountIds as $accountId) {
+            $running = $opening[$accountId] ?? 0.0;
+            $values = [];
+            foreach ($monthKeys as $monthKey) {
+                $running += $nets[$accountId][$monthKey] ?? 0.0;
+                $values[] = round($running, 2);
+            }
+            $balances[$accountId] = $values;
+        }
+
+        return ['months' => $monthKeys, 'balances' => $balances];
+    }
+
     public function countTransactions(Account $account): int
     {
         return (int) $this->createQueryBuilder('a')

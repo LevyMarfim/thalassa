@@ -68,6 +68,24 @@
                 {% endif %}
             </section>
 
+            <section class="card card--wide" aria-labelledby="chart-heading">
+                <h2 id="chart-heading">Account value by month</h2>
+                <p class="card__hint">Month-end balance per account. Hover the chart for exact values, toggle accounts in the legend, and switch the range.</p>
+
+                {% if charts is empty %}
+                    <div class="empty-state">
+                        <p>No account history yet.</p>
+                        <small>Add a transaction and your month-end balances will appear here.</small>
+                    </div>
+                {% else %}
+                    <div class="chart-panels">
+                        {% for chart in charts %}
+                            {{ include('components/_monthly_balance_chart.html.twig', {chart: chart}) }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </section>
+
             <section class="card card--wide" aria-labelledby="activity-heading">
                 <h2 id="activity-heading">Recent activity</h2>
 
