@@ -107,11 +107,11 @@ final class HomeControllerTest extends WebTestCase
     }
 
     /**
-     * The server hands Chart.js a cumulative series: a transaction before the
-     * 12-month window is carried into the first plotted month, a debit lowers
-     * the line, and a later credit raises it. Stimulus turns the JSON into an
-     * interactive chart on the client, so the data attribute is the contract
-     * this test can verify.
+     * The server hands Chart.js one cumulative series per account from the
+     * first transaction onward: an opening credit carries through the later
+     * months, a debit lowers the line, and a later credit raises it. Stimulus
+     * turns the JSON into an interactive chart on the client, so the data
+     * attribute is the contract this test can verify.
      */
     public function testHomePlotsMonthEndBalancesPerAccount(): void
     {
@@ -134,16 +134,30 @@ final class HomeControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('#chart-heading', 'Account value by month');
-        self::assertSelectorTextContains('.chart-summary', '12 months');
+        self::assertSelectorTextContains('.chart-summary', 'Last 12 months');
         self::assertSame(
-            '12M',
+            '1Y',
             $crawler->filter('.chart-panel')->first()->filter('.chart-range__button[aria-pressed="true"]')->text(),
         );
+
+        // Fourteen months of history: the year and all-time options are
+        // offered, but the two-year window is not.
+        $ranges = $crawler->filter('.chart-panel')->first()
+            ->filter('.chart-range__button')->each(
+                static fn (Crawler $button): string => $button->text()
+            );
+        self::assertContains('1Y', $ranges);
+        self::assertContains('All', $ranges);
+        self::assertNotContains('2Y', $ranges);
+        self::assertNotContains('3Y', $ranges);
+        self::assertNotContains('5Y', $ranges);
 
         $data = $this->panelData($crawler, 'Real (BRL)');
         self::assertSame('BRL', $data['currency']);
         self::assertSame('R$', $data['symbol']);
-        self::assertCount(12, $data['labels']);
+        // The server sends the whole history; the default 1Y view is sliced
+        // client-side, so the data attribute holds all fourteen months.
+        self::assertCount(14, $data['labels']);
         self::assertCount(1, $data['datasets']);
 
         $dataset = $data['datasets'][0];
@@ -151,10 +165,10 @@ final class HomeControllerTest extends WebTestCase
         self::assertSame($account->getName(), $dataset['label']);
         self::assertMatchesRegularExpression('/^#[0-9a-f]{6}$/', $dataset['color']);
 
-        // Opening 1.000 carried through the ten months before the debit, then
-        // 800 after the debit, then 850 after the credit.
+        // Opening 1.000 carried through the twelve months before the debit,
+        // then 800 after the debit, then 850 after the credit.
         self::assertSame(
-            [...array_fill(0, 10, 1000.0), 800.0, 850.0],
+            [...array_fill(0, 12, 1000.0), 800.0, 850.0],
             array_map(static fn ($value): float => (float) $value, $dataset['data']),
         );
     }
@@ -210,7 +224,47 @@ final class HomeControllerTest extends WebTestCase
         self::assertSame('USD', $usdData['currency']);
         self::assertSame('US$', $usdData['symbol']);
         self::assertSame([$usd->getId()], array_column($usdData['datasets'], 'accountId'));
-        self::assertSame(90.0, (float) $usdData['datasets'][0]['data'][11]);
+
+        // Both accounts only have activity in the current month, so that is
+        // the whole (one point) history.
+        $usdValues = $usdData['datasets'][0]['data'];
+        self::assertSame(90.0, (float) $usdValues[array_key_last($usdValues)]);
+    }
+
+    /**
+     * Ranges are offered only when the ledger reaches that far back: five
+     * years and nine months of history makes every option available, and the
+     * whole history is sent to the browser for the All view.
+     */
+    public function testHomeOffersOnlyYearRangesCoveredByHistory(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser(sprintf('home-chart-range-%s', uniqid()));
+        $client->loginUser($user);
+
+        $firstOfMonth = (new \DateTimeImmutable('now', new \DateTimeZone('America/Sao_Paulo')))
+            ->modify('first day of this month');
+        $start = $firstOfMonth->modify('-65 months');
+
+        $this->seedChartAccount($user, CurrencyEnum::BRL, [
+            [$start->format('Y-m-10'), OperationEnum::CREDIT, 100.00],
+        ]);
+
+        $crawler = $client->request('GET', '/');
+
+        $ranges = $crawler->filter('.chart-panel')->first()
+            ->filter('.chart-range__button')->each(
+                static fn (Crawler $button): string => $button->text()
+            );
+        foreach (['3M', '6M', '1Y', '2Y', '3Y', '5Y', 'All'] as $expected) {
+            self::assertContains($expected, $ranges);
+        }
+
+        $data = $this->panelData($crawler, 'Real (BRL)');
+        self::assertCount(66, $data['labels'], 'One point per month from the first transaction to now');
+        self::assertSame(100.0, (float) $data['datasets'][0]['data'][0]);
+        self::assertSame(100.0, (float) $data['datasets'][0]['data'][65]);
+        self::assertSelectorTextContains('.chart-summary', 'Last 12 months');
     }
 
     /**

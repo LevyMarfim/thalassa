@@ -115,7 +115,9 @@ class AccountRepository extends ServiceEntityRepository
      * and filter on its owner, never on the request input, so one user's
      * ledger cannot leak into another's chart.
      *
-     * @param int $months Number of calendar months to return, ending with the current one
+     * @param int|null $months Number of calendar months to return, ending with
+     *                         the current one; null starts at the first month
+     *                         that has a transaction, i.e. all time
      *
      * @return array{
      *     months: list<string>,
@@ -123,24 +125,49 @@ class AccountRepository extends ServiceEntityRepository
      * } months are Y-m keys in chronological order; balances maps account id
      *   to one float per month (balance at that month's end)
      */
-    public function findMonthlyBalancesByUser(User $user, int $months = 12): array
+    public function findMonthlyBalancesByUser(User $user, ?int $months = 12): array
     {
-        $months = max(1, $months);
         $timezone = new \DateTimeZone('America/Sao_Paulo');
         $currentMonth = (new \DateTimeImmutable('now', $timezone))
             ->modify('first day of this month')
             ->setTime(0, 0);
-        $firstMonth = $currentMonth->modify(\sprintf('-%d months', $months - 1));
+        $connection = $this->getEntityManager()->getConnection();
+
+        if (null === $months) {
+            $earliest = $connection->executeQuery(
+                <<<SQL
+                    SELECT TO_CHAR(MIN(t.movement), 'YYYY-MM') AS earliest
+                    FROM app_transaction t
+                    INNER JOIN app_account a ON a.id = t.account_id
+                    WHERE a.user_id = :user
+                    SQL,
+                ['user' => $user->getId()],
+            )->fetchOne();
+
+            if (!\is_string($earliest) || '' === $earliest) {
+                return ['months' => [], 'balances' => []];
+            }
+
+            $firstMonth = \DateTimeImmutable::createFromFormat('!Y-m', $earliest, $timezone);
+            \assert($firstMonth instanceof \DateTimeImmutable);
+        } else {
+            $months = max(1, $months);
+            $firstMonth = $currentMonth->modify(\sprintf('-%d months', $months - 1));
+        }
+
         $lastDay = $currentMonth->modify('last day of this month');
 
         $monthKeys = [];
         $cursor = $firstMonth;
-        for ($i = 0; $i < $months; ++$i) {
+        while ($cursor <= $currentMonth) {
             $monthKeys[] = $cursor->format('Y-m');
             $cursor = $cursor->modify('first day of next month');
         }
 
-        $connection = $this->getEntityManager()->getConnection();
+        if ([] === $monthKeys) {
+            return ['months' => [], 'balances' => []];
+        }
+
         // A debit is stored negative, but ABS() keeps this correct for legacy
         // rows the same way findBalancesByUser() does.
         $signedTotal = 'SUM(CASE WHEN t.operation = :credit THEN ABS(t.total_price) ELSE -ABS(t.total_price) END)';

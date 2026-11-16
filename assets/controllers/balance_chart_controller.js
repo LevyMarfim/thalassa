@@ -51,8 +51,9 @@ const crosshair = {
  *  - hovering anywhere on a month pins a crosshair and shows every account's
  *    value for that month in one tooltip (footer totals them);
  *  - clicking a legend item hides/shows that account;
- *  - the 3M/6M/12M buttons re-slice the same data client-side, with a
- *    transition instead of a reload;
+ *  - the 3M/6M/1Y/2Y/3Y/5Y/All buttons re-slice the same history client-side,
+ *    with a transition instead of a reload (only ranges the ledger covers are
+ *    rendered);
  *  - the chart is responsive down to the card width.
  */
 export default class extends Controller {
@@ -63,9 +64,16 @@ export default class extends Controller {
         this.fullLabels = this.dataValue.labels;
         this.fullDatasets = this.dataValue.datasets;
         this.fullData = this.fullDatasets.map((dataset) => dataset.data);
-        this.range = this.fullLabels.length;
 
-        this.chart = new Chart(this.canvasTarget, this.buildConfig());
+        // One year is the initial view, matching the server-rendered summary.
+        // A ledger shorter than that opens on All instead.
+        this.rangeParam = this.fullLabels.length >= 12 ? 12 : 0;
+        this.range = this.rangeParam === 0 ? this.fullLabels.length : this.rangeParam;
+
+        const labels = this.fullLabels.slice(-this.range);
+        const data = this.fullData.map((values) => values.slice(-this.range));
+
+        this.chart = new Chart(this.canvasTarget, this.buildConfig(labels, data));
         this.syncRangeButtons();
         this.updateSummary();
     }
@@ -77,19 +85,21 @@ export default class extends Controller {
 
     showRange(event) {
         const requested = Number(event.params.range);
-        if (!Number.isInteger(requested) || requested <= 0) {
+        if (!Number.isInteger(requested) || requested < 0) {
             return;
         }
 
-        const range = Math.min(requested, this.fullLabels.length);
-        if (range === this.range) {
-            return;
-        }
+        // 0 is the All button; any larger value is a month count.
+        const range = requested === 0
+            ? this.fullLabels.length
+            : Math.min(requested, this.fullLabels.length);
 
+        this.rangeParam = requested;
         this.range = range;
         this.chart.data.labels = this.fullLabels.slice(-range);
         this.chart.data.datasets.forEach((dataset, index) => {
             dataset.data = this.fullData[index].slice(-range);
+            dataset.pointRadius = this.pointRadiusFor(range);
         });
         // Drop a tooltip pinned to a month that may no longer exist.
         this.chart.setActiveElements([]);
@@ -100,16 +110,16 @@ export default class extends Controller {
         this.updateSummary();
     }
 
-    buildConfig() {
+    buildConfig(labels, data) {
         const format = (value) => `${this.dataValue.symbol} ${MONEY.format(value)}`;
 
         return {
             type: 'line',
             data: {
-                labels: this.fullLabels,
+                labels,
                 datasets: this.fullDatasets.map((dataset, index) => ({
                     label: dataset.label,
-                    data: this.fullData[index],
+                    data: data[index],
                     borderColor: dataset.color,
                     // Only a lone series gets a fill: overlapping translucent
                     // areas make a multi-account chart harder to read.
@@ -119,8 +129,10 @@ export default class extends Controller {
                     tension: 0.35,
                     // Points appear on hover rather than cluttering the line;
                     // the hit area is still 18px wide, so they are easy to
-                    // catch with a mouse or a finger.
-                    pointRadius: 0,
+                    // catch with a mouse or a finger. One or two points get a
+                    // visible marker: without a segment there is no line to
+                    // see (a new ledger can have a single month).
+                    pointRadius: this.pointRadiusFor(labels.length),
                     pointHoverRadius: 5,
                     pointHitRadius: 18,
                     pointBackgroundColor: dataset.color,
@@ -215,18 +227,31 @@ export default class extends Controller {
         return this.fullDatasets.length === 1 ? `${color}1f` : 'transparent';
     }
 
+    pointRadiusFor(months) {
+        // A lone point has no line segment, so it must draw itself.
+        return months <= 2 ? 4 : 0;
+    }
+
     syncRangeButtons() {
         this.rangeButtonTargets.forEach((button) => {
-            const pressed = Number(button.dataset.balanceChartRangeParam) === this.range;
+            const pressed = Number(button.dataset.balanceChartRangeParam) === this.rangeParam;
             button.setAttribute('aria-pressed', String(pressed));
         });
     }
 
     updateSummary() {
         const accounts = this.fullDatasets.length;
+        const period = this.rangeParam === 0
+            ? `All time (${this.months(this.range)})`
+            : `Last ${this.months(this.rangeParam)}`;
+
         this.summaryTarget.textContent =
-            `${this.range} ${this.range === 1 ? 'month' : 'months'} · ` +
+            `${period} · ` +
             `${accounts} ${accounts === 1 ? 'account' : 'accounts'} · ` +
             'click a legend item to hide a series';
+    }
+
+    months(count) {
+        return `${count} ${count === 1 ? 'month' : 'months'}`;
     }
 }

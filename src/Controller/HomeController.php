@@ -22,7 +22,9 @@ final class HomeController extends AbstractController
         \assert($user instanceof User);
 
         $accounts = $accountRepository->findByUser($user);
-        $monthlyBalances = $accountRepository->findMonthlyBalancesByUser($user);
+        // Null means all time: the chart carries the whole history and the
+        // client-side range buttons slice it down to 1/2/3/5 years.
+        $monthlyBalances = $accountRepository->findMonthlyBalancesByUser($user, null);
 
         return $this->render('home/index.html.twig', [
             'accounts' => $accounts,
