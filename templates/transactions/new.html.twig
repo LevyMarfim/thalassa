@@ -42,6 +42,16 @@
                         {{ form_errors(form.operationType) }}
                     </div>
                     <div class="form-field">
+                        {{ form_label(form.totalPrice, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.totalPrice) }}
+                        {{ form_errors(form.totalPrice) }}
+                    </div>
+                    <div class="form-field form-field--wide">
+                        {{ form_label(form.description, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.description, {attr: {class: 'form-input'}}) }}
+                        {{ form_errors(form.description) }}
+                    </div>
+                    <div class="form-field">
                         {{ form_label(form.ticker, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.ticker) }}
                         {{ form_errors(form.ticker) }}
@@ -65,16 +75,6 @@
                         {{ form_label(form.invoice, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.invoice) }}
                         {{ form_errors(form.invoice) }}
-                    </div>
-                    <div class="form-field form-field--wide">
-                        {{ form_label(form.description, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.description, {attr: {class: 'form-input'}}) }}
-                        {{ form_errors(form.description) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(form.totalPrice, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.totalPrice) }}
-                        {{ form_errors(form.totalPrice) }}
                     </div>
 
                     <button type="submit" class="btn btn--primary btn--block">Add transaction</button>
