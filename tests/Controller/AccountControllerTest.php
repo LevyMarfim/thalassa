@@ -45,6 +45,10 @@ final class AccountControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertCount(1, $crawler->filter('form[name="account_form"]'));
         self::assertSelectorTextContains('.account-list', $account->getName());
+        self::assertStringContainsString(
+            (string) $account->getColor(),
+            (string) $crawler->filter('.account-color-dot')->first()->attr('style')
+        );
     }
 
     public function testAccountNamesLinkToTheirTransactions(): void
@@ -158,6 +162,7 @@ final class AccountControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('.account-edit__meta', '125,50');
+        self::assertSame($account->getColor(), $crawler->filter('input[name="account_form[color]"]')->attr('value'));
         self::assertGreaterThanOrEqual(3, $crawler->filter('.help-text')->count());
         self::assertCount(1, $crawler->filter(sprintf('a[href="/transactions?account=%d"]', $account->getId())));
         self::assertCount(1, $crawler->filter('.dash-header a[href="/accounts"]'));
@@ -190,9 +195,14 @@ final class AccountControllerTest extends WebTestCase
         $name = $this->uniqueName('XP');
 
         $crawler = $client->request('GET', '/accounts');
+        $colorField = $crawler->filter('input[name="account_form[color]"][type="color"]');
+        self::assertCount(1, $colorField);
+        self::assertContains($colorField->attr('value'), Account::CHART_COLORS);
+
         $form = $crawler->filter('form[name="account_form"]')->form([
             'account_form[name]' => $name,
             'account_form[currency]' => 'USD',
+            'account_form[color]' => '#3b82f6',
             'account_form[active]' => '1',
         ]);
         $client->submit($form);
@@ -205,6 +215,7 @@ final class AccountControllerTest extends WebTestCase
         self::assertNotNull($created);
         self::assertSame($user->getId(), $created->getUser()?->getId());
         self::assertSame(CurrencyEnum::USD, $created->getCurrency());
+        self::assertSame('#3b82f6', $created->getColor());
         self::assertTrue($created->isActive());
     }
 
@@ -303,6 +314,7 @@ final class AccountControllerTest extends WebTestCase
         $form = $crawler->filter('form[name="account_form"]')->form([
             'account_form[name]' => $newName,
             'account_form[currency]' => 'USD',
+            'account_form[color]' => '#8B5CF6',
             'account_form[active]' => '0',
         ]);
         $client->submit($form);
@@ -312,8 +324,26 @@ final class AccountControllerTest extends WebTestCase
         $updated = $this->findAccount($newName);
         self::assertNotNull($updated);
         self::assertSame(CurrencyEnum::USD, $updated->getCurrency());
+        self::assertSame('#8b5cf6', $updated->getColor());
         self::assertFalse($updated->isActive());
         self::assertNull($this->findAccount($account->getName()));
+    }
+
+    public function testEditAccountRejectsInvalidColor(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $account = $this->createAccount($this->uniqueName('Color'));
+        $original = $account->getColor();
+
+        $crawler = $client->request('GET', sprintf('/accounts/%d/edit', $account->getId()));
+        $form = $crawler->filter('form[name="account_form"]')->form([
+            'account_form[color]' => '#12345g',
+        ]);
+        $client->submit($form);
+
+        self::assertResponseIsUnprocessable();
+        self::assertSame($original, $this->findAccount($account->getName())?->getColor());
     }
 
     public function testEditForeignAccountReturnsNotFound(): void

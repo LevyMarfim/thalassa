@@ -14,9 +14,9 @@ use App\Enum\CurrencyEnum;
  *
  * No geometry lives here: Chart.js owns scaling, axes and drawing. The
  * builder only groups accounts by currency (a BRL line and a USD line must
- * never share an axis) and gives each series a stable colour. The result is
- * JSON-encoded into a data attribute and read by the balance-chart Stimulus
- * controller.
+ * never share an axis) and passes through each account's saved chart colour.
+ * The result is JSON-encoded into a data attribute and read by the
+ * balance-chart Stimulus controller.
  */
 final class MonthlyBalanceChartBuilder
 {
@@ -27,18 +27,6 @@ final class MonthlyBalanceChartBuilder
      * @var list<string>
      */
     private const array MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-
-    /** Distinguishable line colours; the brand green leads. */
-    private const array PALETTE = [
-        '#10b981',
-        '#3b82f6',
-        '#f59e0b',
-        '#8b5cf6',
-        '#ef4444',
-        '#06b6d4',
-        '#ec4899',
-        '#84cc16',
-    ];
 
     /**
      * @param list<Account>           $accounts ordered as they should appear in the legends
@@ -84,7 +72,7 @@ final class MonthlyBalanceChartBuilder
                         static fn (float $value): float => round($value, 2),
                         $balances[$id],
                     ),
-                    'color' => self::PALETTE[\count($datasets) % \count(self::PALETTE)],
+                    'color' => $account->getColor() ?? Account::DEFAULT_COLOR,
                 ];
             }
 

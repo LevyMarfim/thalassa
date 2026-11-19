@@ -7,6 +7,7 @@ use App\Entity\Account;
 use App\Enum\CurrencyEnum;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\ColorType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -37,6 +38,12 @@ final class AccountFormType extends AbstractType
                 'choice_label' => static fn (CurrencyEnum $case): string => $case->labels(),
                 'help' => 'Determines how balances are displayed. Changing it does not convert existing amounts.',
                 'attr' => ['class' => 'form-input'],
+            ])
+            ->add('color', ColorType::class, [
+                'label' => 'Chart color',
+                'html5' => true,
+                'help' => 'This account’s line colour on the dashboard chart.',
+                'attr' => ['class' => 'form-input account-color-input'],
             ])
             ->add('active', ChoiceType::class, [
                 'label' => 'Status',

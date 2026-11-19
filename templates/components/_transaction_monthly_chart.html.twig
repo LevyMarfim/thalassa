@@ -1,0 +1,58 @@
+{# One currency's monthly credits/debits as a compact grouped-bar chart.
+   The server sends the full filtered history; this figure renders the same
+   3M/6M/1Y/2Y/3Y/5Y/All selector as the dashboard balance chart and the Stimulus
+   controller slices the data client-side. #}
+{% set available_months = chart.labels|length %}
+{% set default_is_all = chart.defaultRange == 0 %}
+<figure class="chart-panel chart-panel--compact"
+        data-controller="transaction-chart"
+        data-transaction-chart-kind-value="monthly"
+        data-transaction-chart-data-value="{{ chart|json_encode|e('html_attr') }}">
+    <figcaption>
+        <span>{{ chart.title }} · monthly movement</span>
+        <span class="chart-range" role="group" aria-label="Time range">
+            {% for range in [
+                {months: 3, label: '3M'},
+                {months: 6, label: '6M'},
+                {months: 12, label: '1Y'},
+                {months: 24, label: '2Y'},
+                {months: 36, label: '3Y'},
+                {months: 60, label: '5Y'},
+            ] %}
+                {# Never offer a window the filtered history does not cover. #}
+                {% if available_months >= range.months %}
+                    <button type="button"
+                            class="chart-range__button"
+                            data-action="transaction-chart#showRange"
+                            data-transaction-chart-target="rangeButton"
+                            data-transaction-chart-range-param="{{ range.months }}"
+                            aria-pressed="{{ not default_is_all and range.months == chart.defaultRange ? 'true' : 'false' }}">{{ range.label }}</button>
+                {% endif %}
+            {% endfor %}
+            <button type="button"
+                    class="chart-range__button"
+                    data-action="transaction-chart#showRange"
+                    data-transaction-chart-target="rangeButton"
+                    data-transaction-chart-range-param="0"
+                    aria-pressed="{{ default_is_all ? 'true' : 'false' }}">All</button>
+        </span>
+    </figcaption>
+
+    <div class="chart-canvas-wrap chart-canvas-wrap--compact">
+        <canvas data-transaction-chart-target="canvas"
+                role="img"
+                aria-label="Monthly credits and debits for {{ chart.title }} accounts"></canvas>
+    </div>
+
+    <p class="chart-summary" data-transaction-chart-target="summary" aria-live="polite">
+        {% if default_is_all %}
+            All time ({{ available_months }} {{ available_months == 1 ? 'month' : 'months' }})
+        {% else %}
+            Last {{ chart.defaultRange }} months
+        {% endif %}
+    </p>
+
+    <noscript>
+        <p class="chart-noscript">Enable JavaScript to see the chart.</p>
+    </noscript>
+</figure>

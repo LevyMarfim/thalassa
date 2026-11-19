@@ -205,6 +205,32 @@ final class HomeControllerTest extends WebTestCase
         );
     }
 
+    /**
+     * The colour chosen on the account edit form must be the one Chart.js draws:
+     * the server passes it straight through in the dataset payload.
+     */
+    public function testHomeUsesTheAccountsSavedChartColor(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser(sprintf('home-color-%s', uniqid()));
+        $client->loginUser($user);
+
+        $date = (new \DateTimeImmutable('now', new \DateTimeZone('America/Sao_Paulo')))
+            ->format('Y-m-05');
+        $this->seedChartAccount(
+            $user,
+            CurrencyEnum::BRL,
+            [[$date, OperationEnum::CREDIT, 100.00]],
+            '#ec4899',
+        );
+
+        $crawler = $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+        $data = $this->panelData($crawler, 'Real (BRL)');
+        self::assertSame('#ec4899', $data['datasets'][0]['color']);
+    }
+
     public function testHomeShowsEmptyChartWhenNoTransactions(): void
     {
         $client = static::createClient();
@@ -325,8 +351,12 @@ final class HomeControllerTest extends WebTestCase
      *
      * @param list<array{0: string, 1: OperationEnum, 2: float}> $movements
      */
-    private function seedChartAccount(User $owner, CurrencyEnum $currency, array $movements): Account
-    {
+    private function seedChartAccount(
+        User $owner,
+        CurrencyEnum $currency,
+        array $movements,
+        ?string $color = null,
+    ): Account {
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $em->clear();
 
@@ -337,6 +367,9 @@ final class HomeControllerTest extends WebTestCase
         $account->setUser($user);
         $account->setName(sprintf('CHART%s', strtoupper(substr(uniqid(), -6))));
         $account->setCurrency($currency);
+        if (null !== $color) {
+            $account->setColor($color);
+        }
         $em->persist($account);
         $em->flush();
 

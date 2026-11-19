@@ -54,6 +54,12 @@
                         {{ form_errors(form.currency) }}
                     </div>
                     <div class="form-field">
+                        {{ form_label(form.color, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.color) }}
+                        {{ form_help(form.color) }}
+                        {{ form_errors(form.color) }}
+                    </div>
+                    <div class="form-field">
                         {{ form_label(form.active, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.active) }}
                         {{ form_help(form.active) }}

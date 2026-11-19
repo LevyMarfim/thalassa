@@ -94,6 +94,7 @@
                         {% for account in accounts %}
                             <li class="type-list__row">
                                 <a class="type-list__name type-list__link" href="{{ path('app_transactions', {account: account.id}) }}" title="View transactions for {{ account.name }}">
+                                    <span class="account-color-dot" style="background-color: {{ account.color|e('html_attr') }}" aria-hidden="true"></span>
                                     {{ account.name }}
                                     {% if account.active %}
                                         <span class="account-badge account-badge--active">Active</span>
@@ -137,6 +138,12 @@
                         {{ form_widget(form.currency) }}
                         {{ form_help(form.currency) }}
                         {{ form_errors(form.currency) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.color, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.color) }}
+                        {{ form_help(form.color) }}
+                        {{ form_errors(form.color) }}
                     </div>
                     <div class="form-field">
                         {{ form_label(form.active, null, {label_attr: {class: 'form-label'}}) }}

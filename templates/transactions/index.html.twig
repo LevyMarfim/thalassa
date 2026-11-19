@@ -5,6 +5,7 @@
 {% block title %}Transactions · FinFlow{% endblock %}
 
 {% block dashboard_content %}
+    <div class="tx-page">
         <header class="dash-header dash-header--split">
             <div>
                 <h1>Transactions</h1>
@@ -20,9 +21,9 @@
             </p>
         {% endif %}
 
-        <div class="dash-grid">
+        <div class="tx-layout">
             {% if currencySummaries is not empty %}
-                <section class="card card--wide" aria-labelledby="tx-summary-heading">
+                <section class="card card--compact tx-span-12" aria-labelledby="tx-summary-heading">
                     <h2 id="tx-summary-heading" class="sr-only">Movement overview</h2>
                     <div class="tx-summary__grid">
                         {% for summary in currencySummaries %}
@@ -43,7 +44,45 @@
                 </section>
             {% endif %}
 
-            <section class="card card--wide" aria-labelledby="filters-heading">
+            <section class="card card--compact tx-span-8" aria-labelledby="tx-monthly-heading">
+                <h2 id="tx-monthly-heading" class="sr-only">Monthly movement</h2>
+                {% if monthlyCharts is empty %}
+                    <div class="empty-state">
+                        {% if filter.isActive %}
+                            <p>No monthly activity matches these filters.</p>
+                            <small>Adjust them or <a href="{{ path('app_transactions') }}">clear the filters</a>.</small>
+                        {% else %}
+                            <p>No monthly activity yet.</p>
+                            <small>It appears here as you record transactions.</small>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="chart-panels chart-panels--compact">
+                        {% for chart in monthlyCharts %}
+                            {{ include('components/_transaction_monthly_chart.html.twig', {chart: chart}) }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </section>
+
+            <section class="card card--compact tx-span-4" aria-labelledby="tx-types-heading">
+                <h2 id="tx-types-heading" class="sr-only">Operation type mix</h2>
+                {% if typeChart is null %}
+                    <div class="empty-state">
+                        {% if filter.isActive %}
+                            <p>No operation types match these filters.</p>
+                            <small>Adjust them or <a href="{{ path('app_transactions') }}">clear the filters</a>.</small>
+                        {% else %}
+                            <p>No operation types yet.</p>
+                            <small>They appear here as you record transactions.</small>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    {{ include('components/_transaction_type_chart.html.twig', {chart: typeChart}) }}
+                {% endif %}
+            </section>
+
+            <section class="card card--compact tx-span-12 tx-filters" aria-labelledby="filters-heading">
                 <div class="card__heading-row">
                     <h2 id="filters-heading">Filters</h2>
                     {% if filter.isActive %}
@@ -100,7 +139,7 @@
                 {{ form_end(filterForm) }}
             </section>
 
-            <section class="card card--wide" aria-labelledby="list-heading">
+            <section class="card card--compact tx-span-12 tx-list" aria-labelledby="list-heading">
                 <div class="card__heading-row">
                     <h2 id="list-heading">All transactions</h2>
                     <span class="card__count">Showing {{ transactions|length }} of {{ transactionCount }}</span>
@@ -181,4 +220,5 @@
                 {% endif %}
             </section>
         </div>
+    </div>
 {% endblock %}

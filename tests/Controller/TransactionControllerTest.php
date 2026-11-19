@@ -288,7 +288,7 @@ final class TransactionControllerTest extends WebTestCase
     {
         $client = static::createClient();
         $client->loginUser($this->createUser());
-        $this->seedTransactionData();
+        $data = $this->seedTransactionData();
 
         $this->createTransaction($this->uniqueDescription('BRL-CREDIT'), 100.00, null, OperationEnum::CREDIT);
         $this->createTransaction($this->uniqueDescription('BRL-DEBIT'), 30.00, null, OperationEnum::DEBIT);
@@ -314,6 +314,145 @@ final class TransactionControllerTest extends WebTestCase
         self::assertStringContainsString('US$ 50,00', $usd->text());
 
         self::assertSelectorTextContains('.tx-summary__item--muted', '3 transactions across all accounts');
+
+        // Compact layout + charts: one monthly panel per currency, one type
+        // doughnut, all driven by the same Stimulus controller.
+        self::assertCount(1, $crawler->filter('.tx-layout'));
+        self::assertCount(1, $crawler->filter('.tx-span-8'));
+        self::assertCount(1, $crawler->filter('.tx-span-4'));
+        $monthly = $crawler->filter('[data-transaction-chart-kind-value="monthly"]');
+        self::assertCount(2, $monthly);
+        self::assertStringContainsString('BRL', $monthly->first()->attr('data-transaction-chart-data-value'));
+        self::assertStringContainsString('USD', $monthly->last()->attr('data-transaction-chart-data-value'));
+
+        $types = $crawler->filter('[data-transaction-chart-kind-value="types"]');
+        self::assertCount(1, $types);
+        self::assertStringContainsString(
+            $data['operationType']->getType(),
+            $types->attr('data-transaction-chart-data-value')
+        );
+    }
+
+    public function testChartsFollowTheAccountFilter(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+
+        $brl = $this->uniqueDescription('CHART-BRL');
+        $usd = $this->uniqueDescription('CHART-USD');
+        $this->createTransaction($brl, 100.00, null, OperationEnum::CREDIT, '2026-10-10');
+        $this->createAccountWithTransaction($usd, 50.00, CurrencyEnum::USD, OperationEnum::CREDIT);
+
+        // Unfiltered: both currencies are plotted and both rows feed the type
+        // doughnut.
+        $unfiltered = $client->request('GET', '/transactions');
+        self::assertCount(2, $unfiltered->filter('[data-transaction-chart-kind-value="monthly"]'));
+        self::assertSame(2, array_sum($this->chartData($unfiltered, 'types')['counts']));
+
+        // The legacy ?account= link must narrow the charts too, not just the
+        // table above them.
+        $filtered = $client->request('GET', sprintf('/transactions?account=%d', $data['account']->getId()));
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $filtered->filter('[data-transaction-chart-kind-value="monthly"]'));
+        $monthly = $this->chartData($filtered, 'monthly', 'BRL');
+        self::assertSame(100.0, (float) array_sum($monthly['credits']));
+        self::assertSame(0.0, (float) array_sum($monthly['debits']));
+
+        $types = $this->chartData($filtered, 'types');
+        self::assertSame(1, array_sum($types['counts']));
+        self::assertSame('Filtered', $types['period']);
+    }
+
+    public function testMonthlyChartWindowFollowsTheMovementDateFilter(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $january = $this->uniqueDescription('CHART-JAN');
+        $november = $this->uniqueDescription('CHART-NOV');
+        $this->createTransaction($january, 100.00, null, OperationEnum::CREDIT, '2026-01-10');
+        $this->createTransaction($november, 200.00, null, OperationEnum::CREDIT, '2026-11-10');
+
+        $crawler = $client->request('GET', '/transactions', [
+            'transaction_filter' => [
+                'movementFrom' => '01/01/2026',
+                'movementTo' => '31/01/2026',
+            ],
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('.tx-table', $january);
+        self::assertSelectorTextNotContains('.tx-table', $november);
+
+        $monthly = $this->chartData($crawler, 'monthly', 'BRL');
+        // The full unfiltered history reaches back to jan/26, but the date
+        // filter caps the chart at exactly the requested month.
+        self::assertSame(['jan/26'], $monthly['labels']);
+        self::assertSame('jan/26', $monthly['period']);
+        self::assertSame(0, $monthly['defaultRange']);
+        self::assertSame([100.0], array_map('floatval', $monthly['credits']));
+        self::assertSame([0.0], array_map('floatval', $monthly['debits']));
+
+        $panel = $crawler->filter('[data-transaction-chart-kind-value="monthly"]')->first();
+        self::assertSame(['All'], $this->rangeLabels($panel));
+    }
+
+    public function testMonthlyChartShowsOldActivityWithAnAllRange(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $old = $this->uniqueDescription('CHART-OLD');
+        $this->createTransaction($old, 90.00, null, OperationEnum::CREDIT, '2024-03-10');
+
+        // Before the range selector the chart was capped at 12 months and this
+        // transaction produced an empty panel. The whole history is sent now.
+        $crawler = $client->request('GET', '/transactions');
+        self::assertResponseIsSuccessful();
+
+        $monthly = $this->chartData($crawler, 'monthly', 'BRL');
+        self::assertSame('mar/24', $monthly['labels'][0]);
+        self::assertGreaterThan(12, \count($monthly['labels']));
+        self::assertSame(0, $monthly['defaultRange']);
+        self::assertSame(90.0, (float) array_sum($monthly['credits']));
+
+        $panel = $crawler->filter('[data-transaction-chart-kind-value="monthly"]')->first();
+        $labels = $this->rangeLabels($panel);
+        self::assertContains('3M', $labels);
+        self::assertContains('1Y', $labels);
+        self::assertContains('All', $labels);
+        self::assertSame(['All'], $this->pressedRanges($panel));
+        self::assertStringContainsString('All time (', $panel->filter('.chart-summary')->text());
+    }
+
+    public function testMonthlyChartStartsOnOneYearWhenRecentActivityExists(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $this->createTransaction($this->uniqueDescription('CHART-OLD'), 40.00, null, OperationEnum::CREDIT, '2024-03-10');
+        $this->createTransaction($this->uniqueDescription('CHART-RECENT'), 60.00, null, OperationEnum::CREDIT, '2026-10-10');
+
+        $crawler = $client->request('GET', '/transactions');
+        self::assertResponseIsSuccessful();
+
+        $monthly = $this->chartData($crawler, 'monthly', 'BRL');
+        $today = new \DateTimeImmutable('now', new \DateTimeZone('America/Sao_Paulo'));
+        $monthNames = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+        $currentMonth = $monthNames[(int) $today->format('n') - 1].'/'.$today->format('y');
+        self::assertSame(12, $monthly['defaultRange']);
+        self::assertContains('out/26', \array_slice($monthly['labels'], -12));
+        self::assertSame($currentMonth, $monthly['labels'][array_key_last($monthly['labels'])]);
+        self::assertSame(100.0, (float) array_sum($monthly['credits']));
+
+        $panel = $crawler->filter('[data-transaction-chart-kind-value="monthly"]')->first();
+        self::assertSame(['1Y'], $this->pressedRanges($panel));
+        self::assertStringContainsString('Last 12 months', $panel->filter('.chart-summary')->text());
     }
 
     public function testNewPageRendersTheCreateForm(): void
@@ -488,9 +627,9 @@ final class TransactionControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertCount(0, $crawler->filter('.tx-table'));
-        self::assertCount(1, $crawler->filter('.empty-state'));
-        self::assertSelectorTextContains('.empty-state', 'No transactions match these filters.');
-        self::assertCount(1, $crawler->filter('.empty-state a[href="/transactions"]'));
+        self::assertCount(1, $crawler->filter('.tx-list .empty-state'));
+        self::assertSelectorTextContains('.tx-list .empty-state', 'No transactions match these filters.');
+        self::assertCount(1, $crawler->filter('.tx-list .empty-state a[href="/transactions"]'));
         self::assertStringNotContainsString($description, $crawler->text());
     }
 
@@ -1292,6 +1431,57 @@ final class TransactionControllerTest extends WebTestCase
         $em->clear();
 
         return $transaction;
+    }
+
+    /**
+     * Reads the JSON handed to a chart's Stimulus controller. The monthly kind
+     * can be narrowed to one currency so a filter that removes a panel cannot
+     * be satisfied by the other panel's data.
+     *
+     * @return array<string, mixed>
+     */
+    private function chartData(Crawler $crawler, string $kind, ?string $currency = null): array
+    {
+        $panels = $crawler->filter(sprintf('[data-transaction-chart-kind-value="%s"]', $kind));
+        if (null !== $currency) {
+            $panels = $panels->reduce(
+                static fn (Crawler $panel): bool => str_contains(
+                    (string) $panel->attr('data-transaction-chart-data-value'),
+                    sprintf('"currency":"%s"', $currency)
+                )
+            );
+        }
+        self::assertCount(1, $panels);
+
+        $json = $panels->attr('data-transaction-chart-data-value');
+        self::assertNotNull($json);
+
+        return json_decode(
+            html_entity_decode($json, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+            true,
+            512,
+            \JSON_THROW_ON_ERROR
+        );
+    }
+
+    /**
+     * @return list<string> visible range button labels, in DOM order
+     */
+    private function rangeLabels(Crawler $panel): array
+    {
+        return $panel->filter('.chart-range__button')->each(
+            static fn (Crawler $button): string => trim($button->text())
+        );
+    }
+
+    /**
+     * @return list<string> labels of the currently pressed range buttons
+     */
+    private function pressedRanges(Crawler $panel): array
+    {
+        return $panel->filter('.chart-range__button')
+            ->reduce(static fn (Crawler $button): bool => 'true' === $button->attr('aria-pressed'))
+            ->each(static fn (Crawler $button): string => trim($button->text()));
     }
 
     private function createUser(): User

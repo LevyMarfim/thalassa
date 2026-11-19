@@ -40,6 +40,10 @@ services:
 ###> doctrine/doctrine-bundle ###
   database:
     image: postgres:${POSTGRES_VERSION:-18}-alpine
+    # A Docker daemon restart sends SIGTERM to every container. Without a
+    # policy PostgreSQL stays stopped while app (which has one) comes back,
+    # leaving a healthy-looking app with no database.
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-thalassa}
       # You should definitely change the password in production

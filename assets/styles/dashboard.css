@@ -488,6 +488,15 @@ span.dash-nav__item { cursor: default; }
     box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
 }
 
+/* A full-width colour swatch looks like an empty bar, so keep the native
+   picker compact and let the help text explain what it controls. */
+.account-color-input {
+    max-width: 96px;
+    height: 42px;
+    padding: 4px;
+    cursor: pointer;
+}
+
 /* flatpickr popup calendar, on brand with the rest of the form. The vendor
    stylesheet loads after this file, so these selectors stay one level more
    specific than the theme's. */
@@ -764,6 +773,17 @@ a.type-list__name:hover {
 }
 
 .account-balance--negative { color: #b91c1c; }
+
+/* Small swatch tying a list row to its line on the dashboard chart. */
+.account-color-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 8px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--color-border);
+    vertical-align: middle;
+}
 
 .account-badge {
     display: inline-block;
@@ -1154,6 +1174,77 @@ a.type-list__name:hover {
 
 .tx-filter a:hover { text-decoration: underline; }
 
+/* -------------------- Compact transactions layout -------------------- */
+.tx-page .dash-header { margin-bottom: 18px; }
+
+/* Twelve columns give the charts a 2:1 split and let the filter form pack its
+   eight controls into one dense row on a wide screen. Everything collapses to
+   a single column before the table gets cramped. */
+.tx-layout {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 14px;
+    align-items: start;
+}
+
+.tx-span-12 { grid-column: span 12; }
+.tx-span-8 { grid-column: span 8; }
+.tx-span-4 { grid-column: span 4; }
+
+.card--compact { padding: 16px 18px; }
+.card--compact h2 { margin-bottom: 12px; }
+.tx-layout .card__heading-row h2,
+.tx-layout .card__count { margin-bottom: 10px; }
+.tx-layout .tx-summary__item { padding: 12px 14px; }
+.tx-layout .empty-state { padding: 4px 0; }
+
+.chart-panels--compact {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.chart-panel--compact figcaption {
+    margin-bottom: 8px;
+    font-size: 0.7rem;
+}
+
+.chart-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--color-primary-soft);
+    color: var(--color-primary-dark);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.chart-canvas-wrap--compact {
+    height: clamp(140px, 16vw, 175px);
+}
+
+.chart-panel--compact .chart-range__button {
+    padding: 3px 7px;
+    font-size: 0.65rem;
+}
+
+.chart-panel--compact .chart-summary {
+    margin-top: 8px;
+    font-size: 0.7rem;
+}
+
+.tx-filters .tx-form {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.tx-filters .form-input { padding: 10px 12px; }
+
+.tx-list .tx-table { font-size: 0.84rem; }
+
+.tx-list .tx-table th,
+.tx-list .tx-table td { padding: 9px 10px; }
+
 /* -------------------- Responsive -------------------- */
 @media (max-width: 900px) {
     /* The rail is desktop-only: down here the sidebar is hidden, so its
@@ -1161,6 +1252,9 @@ a.type-list__name:hover {
     .dash { padding-left: 0; }
     .dash-sidebar { display: none; }
     .dash-grid { grid-template-columns: 1fr; }
+    .tx-layout { grid-template-columns: 1fr; }
+    .tx-span-8,
+    .tx-span-4 { grid-column: 1 / -1; }
 }
 
 @media (max-width: 640px) {

@@ -34,8 +34,23 @@ final class AccountController extends AbstractController
         $filterForm = $this->createForm(AccountFilterType::class, $filter);
         $filterForm->handleRequest($request);
 
+        // Gather the whole ledger first: the create form is prefilled with the
+        // first palette colour this user has not claimed yet, so two new
+        // accounts do not silently produce two identical chart lines.
+        $allAccounts = $accountRepository->findByUser($user);
+        $usedColors = array_map(
+            static fn (Account $item): ?string => $item->getColor(),
+            $allAccounts,
+        );
+
         $account = new Account();
         $account->setUser($user);
+        foreach (Account::CHART_COLORS as $color) {
+            if (!\in_array($color, $usedColors, true)) {
+                $account->setColor($color);
+                break;
+            }
+        }
 
         $form = $this->createForm(AccountFormType::class, $account);
         $form->handleRequest($request);
@@ -48,7 +63,6 @@ final class AccountController extends AbstractController
         }
 
         // One query for every balance, rather than one per account.
-        $allAccounts = $accountRepository->findByUser($user);
         $balances = $accountRepository->findBalancesByUser($user);
 
         // The summary deliberately uses every account, not the filtered rows:

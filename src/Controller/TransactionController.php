@@ -3,6 +3,7 @@
 
 namespace App\Controller;
 
+use App\Chart\TransactionChartBuilder;
 use App\Dto\TransactionFilter;
 use App\Entity\Account;
 use App\Entity\Transaction;
@@ -26,6 +27,7 @@ final class TransactionController extends AbstractController
         Request $request,
         AccountRepository $accountRepository,
         TransactionRepository $transactionRepository,
+        TransactionChartBuilder $chartBuilder,
     ): Response {
         $user = $this->getUser();
         \assert($user instanceof User);
@@ -57,6 +59,20 @@ final class TransactionController extends AbstractController
             ];
         }
 
+        // Charts follow the same filter as the table. Only the summary strip
+        // above stays whole-ledger on purpose. The monthly chart receives the
+        // full filtered history and lets the browser pick the visible range;
+        // the type chart keeps at most seven slices.
+        $monthlyActivity = $transactionRepository->findMonthlyActivityByUser($user, $filter);
+        $monthlyCharts = $chartBuilder->buildMonthly(
+            $monthlyActivity['months'],
+            $monthlyActivity['rows'],
+        );
+        $typeChart = $chartBuilder->buildTypeMix(
+            $transactionRepository->findOperationTypeCountsByUser($user, $filter),
+            $filter->isActive(),
+        );
+
         return $this->render('transactions/index.html.twig', [
             'filterForm' => $filterForm,
             'filter' => $filter,
@@ -64,6 +80,8 @@ final class TransactionController extends AbstractController
             'filteredAccount' => $filter->getAccount(),
             'transactionCount' => $transactionRepository->countByUser($user),
             'currencySummaries' => $currencySummaries,
+            'monthlyCharts' => $monthlyCharts,
+            'typeChart' => $typeChart,
         ]);
     }
 
