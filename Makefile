@@ -1,7 +1,8 @@
-.PHONY: up start down restart build logs ps console migrate test sh
+.PHONY: up start down restart build logs ps console migrate test sh firewall-fix
 
 up: ## Start the application and wait until reachable (no rebuild: code is live-mounted and workers restart on file change)
 	docker compose up -d
+	@bin/fix-docker-firewall
 	@echo "Waiting for http://localhost/healthz ..."
 	@for i in $$(seq 1 90); do \
 		if curl -sf http://localhost/healthz >/dev/null; then \
@@ -22,6 +23,9 @@ down: ## Stop the application (keeps volumes)
 	docker compose down
 
 restart: down up ## Restart the application
+
+firewall-fix: ## Remove firewall rules left behind by retired Docker networks (also runs during `make up`)
+	@bin/fix-docker-firewall
 
 build: ## Build the app image without starting (fresh clone, new PHP extensions, composer.json/lock changes)
 	docker compose build app
