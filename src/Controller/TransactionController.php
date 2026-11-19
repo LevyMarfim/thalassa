@@ -46,10 +46,9 @@ final class TransactionController extends AbstractController
 
         $transactions = $transactionRepository->findByUser($user, $filter);
 
-        // Deliberately unfiltered: the strip describes the whole ledger, while
-        // the table below may be narrowed to one account or date range.
+        // The summary strip follows the same filter as the table and charts.
         $currencySummaries = [];
-        foreach ($transactionRepository->findTotalsByUser($user) as $total) {
+        foreach ($transactionRepository->findTotalsByUser($user, $filter) as $total) {
             $currency = CurrencyEnum::from($total['currency']);
             $currencySummaries[] = [
                 'currency' => $currency,
@@ -59,10 +58,9 @@ final class TransactionController extends AbstractController
             ];
         }
 
-        // Charts follow the same filter as the table. Only the summary strip
-        // above stays whole-ledger on purpose. The monthly chart receives the
-        // full filtered history and lets the browser pick the visible range;
-        // the type chart keeps at most seven slices.
+        // Charts follow the same filter as the table and summary strip. The
+        // monthly chart receives the full filtered history and lets the browser
+        // pick the visible range; the type chart keeps at most seven slices.
         $monthlyActivity = $transactionRepository->findMonthlyActivityByUser($user, $filter);
         $monthlyCharts = $chartBuilder->buildMonthly(
             $monthlyActivity['months'],
@@ -78,7 +76,7 @@ final class TransactionController extends AbstractController
             'filter' => $filter,
             'transactions' => $transactions,
             'filteredAccount' => $filter->getAccount(),
-            'transactionCount' => $transactionRepository->countByUser($user),
+            'transactionCount' => $transactionRepository->countByUser($user, $filter),
             'currencySummaries' => $currencySummaries,
             'monthlyCharts' => $monthlyCharts,
             'typeChart' => $typeChart,

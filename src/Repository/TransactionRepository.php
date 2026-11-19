@@ -114,14 +114,13 @@ class TransactionRepository extends ServiceEntityRepository
             ->getResult();
     }
 
-    public function countByUser(User $user): int
+    public function countByUser(User $user, ?TransactionFilter $filter = null): int
     {
-        return (int) $this->createQueryBuilder('t')
-            ->select('COUNT(t.id)')
-            ->andWhere('t.user = :user')
-            ->setParameter('user', $user)
-            ->getQuery()
-            ->getSingleScalarResult();
+        $qb = $this->createQueryBuilder('t')
+            ->select('COUNT(t.id)');
+        $this->applyCriteria($qb, $user, $filter);
+
+        return (int) $qb->getQuery()->getSingleScalarResult();
     }
 
     /**
@@ -255,18 +254,18 @@ class TransactionRepository extends ServiceEntityRepository
     }
 
     /**
-     * Whole-ledger net movement per currency, independent of the current list
-     * filter, so the summary strip keeps describing the user's finances even
-     * while the table is narrowed to one account or date range.
+     * Net movement per currency for the current list filter. The summary strip
+     * now describes the same slice as the table and charts, using the shared
+     * criteria helper so a narrowed view cannot show whole-ledger totals.
      *
      * The CASE mirrors findBalancesByUser(): the operation decides direction and
      * ABS() tolerates legacy rows whose debit sign was stored inconsistently.
      *
      * @return array<string, array{currency: string, total: float, count: int}>
      */
-    public function findTotalsByUser(User $user): array
+    public function findTotalsByUser(User $user, ?TransactionFilter $filter = null): array
     {
-        $rows = $this->createQueryBuilder('t')
+        $qb = $this->createQueryBuilder('t')
             ->select('a.currency AS currency')
             ->addSelect('COUNT(t.id) AS transaction_count')
             ->addSelect(
@@ -274,12 +273,11 @@ class TransactionRepository extends ServiceEntityRepository
                 .'THEN ABS(t.totalPrice) ELSE -ABS(t.totalPrice) END), 0) AS total'
             )
             ->innerJoin('t.account', 'a')
-            ->andWhere('t.user = :user')
-            ->setParameter('user', $user)
             ->setParameter('credit', OperationEnum::CREDIT->value)
-            ->groupBy('a.currency')
-            ->getQuery()
-            ->getArrayResult();
+            ->groupBy('a.currency');
+        $this->applyCriteria($qb, $user, $filter);
+
+        $rows = $qb->getQuery()->getArrayResult();
 
         $totals = [];
         foreach ($rows as $row) {

@@ -313,7 +313,7 @@ final class TransactionControllerTest extends WebTestCase
         self::assertCount(1, $usd);
         self::assertStringContainsString('US$ 50,00', $usd->text());
 
-        self::assertSelectorTextContains('.tx-summary__item--muted', '3 transactions across all accounts');
+        self::assertSelectorTextContains('.tx-summary__item--muted', '3 transactions in this view');
 
         // Compact layout + charts: one monthly panel per currency, one type
         // doughnut, all driven by the same Stimulus controller.
@@ -331,6 +331,53 @@ final class TransactionControllerTest extends WebTestCase
             $data['operationType']->getType(),
             $types->attr('data-transaction-chart-data-value')
         );
+    }
+
+    public function testNetMovementSummaryFollowsTheFilters(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+
+        $this->createTransaction($this->uniqueDescription('SUM-CREDIT'), 100.00, null, OperationEnum::CREDIT);
+        $this->createTransaction($this->uniqueDescription('SUM-DEBIT'), 30.00, null, OperationEnum::DEBIT);
+        $this->createAccountWithTransaction(
+            $this->uniqueDescription('SUM-USD'),
+            50.00,
+            CurrencyEnum::USD,
+            OperationEnum::CREDIT,
+        );
+
+        $summary = static function (Crawler $crawler, string $currency): string {
+            $item = $crawler->filter('.tx-summary__item')->reduce(
+                static fn (Crawler $node): bool => str_contains($node->text(), $currency.' net movement')
+            );
+            self::assertCount(1, $item);
+
+            return $item->text();
+        };
+
+        $crawler = $client->request('GET', '/transactions');
+        self::assertStringContainsString('R$ 70,00', $summary($crawler, 'BRL'));
+        self::assertStringContainsString('US$ 50,00', $summary($crawler, 'USD'));
+        self::assertSelectorTextContains('.tx-summary__item--muted', '3 transactions in this view');
+
+        // Account filter: the USD panel disappears and the count is scoped.
+        $crawler = $client->request('GET', sprintf('/transactions?account=%d', $data['account']->getId()));
+        self::assertStringContainsString('R$ 70,00', $summary($crawler, 'BRL'));
+        self::assertCount(0, $crawler->filter('.tx-summary__item')->reduce(
+            static fn (Crawler $node): bool => str_contains($node->text(), 'USD net movement')
+        ));
+        self::assertSelectorTextContains('.tx-summary__item--muted', '2 transactions in this view');
+
+        // Operation filter: debits drop out, so the BRL net becomes the credit.
+        $crawler = $client->request('GET', '/transactions');
+        $form = $crawler->filter('form[name="transaction_filter"]')->form([
+            'transaction_filter[operation]' => 'CREDIT',
+        ]);
+        $crawler = $client->submit($form);
+        self::assertStringContainsString('R$ 100,00', $summary($crawler, 'BRL'));
+        self::assertSelectorTextContains('.tx-summary__item--muted', '2 transactions in this view');
     }
 
     public function testChartsFollowTheAccountFilter(): void
@@ -812,6 +859,12 @@ final class TransactionControllerTest extends WebTestCase
         self::assertResponseRedirects('/transactions');
         $client->followRedirect();
         self::assertSelectorTextContains('.tx-table', $description);
+        self::assertSelectorTextContains('.alert--success', 'Transaction added.');
+        // The flash is rendered as an auto-dismissing toast with a close button.
+        self::assertCount(1, $client->getCrawler()->filter('.flash-toasts[data-controller="flash"]'));
+        self::assertCount(1, $client->getCrawler()->filter('.flash-toast[data-flash-target="toast"]'));
+        self::assertCount(1, $client->getCrawler()->filter('.flash-toast .flash-toast__close[data-action="flash#dismiss"]'));
+        self::assertCount(1, $client->getCrawler()->filter('.flash-toast .flash-toast__progress .flash-toast__progress-bar'));
 
         $created = $this->findTransaction($description);
         self::assertNotNull($created);

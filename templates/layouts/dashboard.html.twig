@@ -72,11 +72,29 @@
     {# Full-window by default: every dashboard page spans the whole width. A
        page that wants the 960px reading cap overrides this block empty. #}
     <main class="dash-main{% block main_class %} dash-main--wide{% endblock %}">
-        {% for label, messages in app.flashes %}
-            {% for message in messages %}
-                <div class="alert alert--{{ label }}" role="status">{{ message }}</div>
-            {% endfor %}
-        {% endfor %}
+        {# Still a regular Symfony flash bag; only the presentation is a toast.
+           The Stimulus controller removes these after a few seconds. #}
+        {% set flashes = app.flashes %}
+        {% if flashes is not empty %}
+            <div class="flash-toasts" data-controller="flash" aria-live="polite">
+                {% for label, messages in flashes %}
+                    {% for message in messages %}
+                        <div class="alert alert--{{ label }} flash-toast"
+                             role="{{ label == 'error' ? 'alert' : 'status' }}"
+                             data-flash-target="toast">
+                            <span class="flash-toast__message">{{ message }}</span>
+                            <button type="button"
+                                    class="flash-toast__close"
+                                    data-action="flash#dismiss"
+                                    aria-label="Dismiss message">&times;</button>
+                            <span class="flash-toast__progress" aria-hidden="true">
+                                <span class="flash-toast__progress-bar"></span>
+                            </span>
+                        </div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        {% endif %}
 
         {% block dashboard_content %}{% endblock %}
     </main>
