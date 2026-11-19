@@ -189,6 +189,7 @@ final class TransactionFormType extends AbstractType
             ->add('totalPrice', NumberType::class, [
                 'label' => 'Total price',
                 'scale' => 2,
+                'help' => 'Enter a positive amount; debit totals are stored as negative values.',
                 // Money is entered as a plain decimal; kept as a float because that
                 // is how the entity/column are defined today (see note in summary).
                 'attr' => [

@@ -225,13 +225,95 @@ final class TransactionControllerTest extends WebTestCase
         self::assertCount(1, $crawler->filter('.dash-header--split a.btn[href="/transactions/new"]'));
 
         // Every criterion the controller understands has a control.
-        foreach (['account', 'operation', 'operationType', 'ticker', 'movementFrom', 'movementTo', 'description'] as $field) {
+        foreach (['account', 'operation', 'operationType', 'ticker', 'movementFrom', 'movementTo', 'description', 'sort'] as $field) {
             self::assertCount(
                 1,
                 $crawler->filter(sprintf('[name="transaction_filter[%s]"]', $field)),
                 sprintf('The %s filter is missing.', $field)
             );
         }
+    }
+
+    public function testIndexSortsTransactionsByMovementDate(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $older = $this->uniqueDescription('OLDER');
+        $newer = $this->uniqueDescription('NEWER');
+        $this->createTransaction($older, 10.00, null, OperationEnum::CREDIT, '2026-01-10');
+        $this->createTransaction($newer, 20.00, null, OperationEnum::CREDIT, '2026-11-10');
+
+        $descriptions = static function (Crawler $crawler): array {
+            return $crawler->filter('.tx-table__desc')->each(
+                static fn (Crawler $node): string => trim($node->text())
+            );
+        };
+
+        $crawler = $client->request('GET', '/transactions');
+        self::assertSame([$newer, $older], $descriptions($crawler));
+
+        $crawler = $client->request('GET', '/transactions?transaction_filter[sort]=movement_asc');
+        self::assertSame([$older, $newer], $descriptions($crawler));
+    }
+
+    public function testIndexSortsTransactionsBySignedTotal(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $large = $this->uniqueDescription('LARGE');
+        $small = $this->uniqueDescription('SMALL');
+        $debit = $this->uniqueDescription('DEBIT');
+        $this->createTransaction($large, 300.00, null, OperationEnum::CREDIT);
+        $this->createTransaction($small, 50.00, null, OperationEnum::CREDIT);
+        $this->createTransaction($debit, 100.00, null, OperationEnum::DEBIT);
+
+        $descriptions = static function (Crawler $crawler): array {
+            return $crawler->filter('.tx-table__desc')->each(
+                static fn (Crawler $node): string => trim($node->text())
+            );
+        };
+
+        $crawler = $client->request('GET', '/transactions?transaction_filter[sort]=total_desc');
+        self::assertSame([$large, $small, $debit], $descriptions($crawler));
+
+        $crawler = $client->request('GET', '/transactions?transaction_filter[sort]=total_asc');
+        self::assertSame([$debit, $small, $large], $descriptions($crawler));
+    }
+
+    public function testIndexSummarisesNetMovementPerCurrency(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $this->createTransaction($this->uniqueDescription('BRL-CREDIT'), 100.00, null, OperationEnum::CREDIT);
+        $this->createTransaction($this->uniqueDescription('BRL-DEBIT'), 30.00, null, OperationEnum::DEBIT);
+        $this->createAccountWithTransaction(
+            $this->uniqueDescription('USD-CREDIT'),
+            50.00,
+            CurrencyEnum::USD,
+            OperationEnum::CREDIT,
+        );
+
+        $crawler = $client->request('GET', '/transactions');
+
+        $brl = $crawler->filter('.tx-summary__item')->reduce(
+            static fn (Crawler $item): bool => str_contains($item->text(), 'BRL net movement')
+        );
+        self::assertCount(1, $brl);
+        self::assertStringContainsString('R$ 70,00', $brl->text());
+
+        $usd = $crawler->filter('.tx-summary__item')->reduce(
+            static fn (Crawler $item): bool => str_contains($item->text(), 'USD net movement')
+        );
+        self::assertCount(1, $usd);
+        self::assertStringContainsString('US$ 50,00', $usd->text());
+
+        self::assertSelectorTextContains('.tx-summary__item--muted', '3 transactions across all accounts');
     }
 
     public function testNewPageRendersTheCreateForm(): void
@@ -245,6 +327,9 @@ final class TransactionControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertCount(1, $crawler->filter('form[name="transaction_form"]'));
         self::assertCount(1, $crawler->filter('.card__back a[href="/transactions"]'));
+        self::assertCount(2, $crawler->filter('.tx-form-section'));
+        self::assertSelectorTextContains('.tx-form-section legend', 'Essential details');
+        self::assertSelectorTextContains('.tx-form-section--optional legend', 'Optional details');
     }
 
     public function testNewTransactionListsOperationTypesAlphabetically(): void
@@ -252,9 +337,12 @@ final class TransactionControllerTest extends WebTestCase
         $client = static::createClient();
         $client->loginUser($this->createUser());
 
-        // Insert in deliberately non-alphabetical order, with mixed case.
+        // Insert in deliberately non-alphabetical order, with mixed case. The
+        // suffix keeps the fixture unique when the test DB is not recreated.
         $em = $this->entityManager();
-        foreach (['zebra transfer', 'Alpha PIX', 'beta bill'] as $name) {
+        $suffix = strtoupper(substr(uniqid(), -5));
+        $names = ["zebra transfer $suffix", "Alpha PIX $suffix", "beta bill $suffix"];
+        foreach ($names as $name) {
             $type = new OperationType();
             $type->setType($name);
             $em->persist($type);
@@ -268,9 +356,9 @@ final class TransactionControllerTest extends WebTestCase
             ->each(static fn (Crawler $option): string => trim($option->text()));
         // The first option is the "Select…" placeholder, not a type.
         array_shift($labels);
-        self::assertContains('Alpha PIX', $labels);
-        self::assertContains('beta bill', $labels);
-        self::assertContains('zebra transfer', $labels);
+        foreach ($names as $name) {
+            self::assertContains($name, $labels);
+        }
 
         $expected = $labels;
         usort($expected, 'strcasecmp');
@@ -931,6 +1019,8 @@ final class TransactionControllerTest extends WebTestCase
         $crawler = $client->request('GET', sprintf('/transactions/%d/edit', $transaction->getId()));
 
         self::assertResponseIsSuccessful();
+        self::assertCount(2, $crawler->filter('.tx-form-section'));
+        self::assertSelectorTextContains('.tx-edit__meta', $transaction->getAccount()?->getName() ?? '');
         self::assertSame(
             $transaction->getDescription(),
             $crawler->filter('input[name="transaction_form[description]"]')->attr('value')
@@ -1109,8 +1199,12 @@ final class TransactionControllerTest extends WebTestCase
      * a single unit of work: a clear() between the two persists would leave
      * the association pointing at a detached entity.
      */
-    private function createAccountWithTransaction(string $description, float $totalPrice): Account
-    {
+    private function createAccountWithTransaction(
+        string $description,
+        float $totalPrice,
+        CurrencyEnum $currency = CurrencyEnum::BRL,
+        OperationEnum $operation = OperationEnum::DEBIT,
+    ): Account {
         $em = $this->entityManager();
 
         $owner = $em->getRepository(User::class)->find($this->currentUser?->getId());
@@ -1123,7 +1217,7 @@ final class TransactionControllerTest extends WebTestCase
         $account = new Account();
         $account->setUser($owner);
         $account->setName(sprintf('ACC%s', strtoupper(substr(uniqid(), -6))));
-        $account->setCurrency(CurrencyEnum::BRL);
+        $account->setCurrency($currency);
         $em->persist($account);
 
         $transaction = new Transaction();
@@ -1131,7 +1225,7 @@ final class TransactionControllerTest extends WebTestCase
         $transaction->setAccount($account);
         $transaction->setMovement(new \DateTime('2026-10-15'));
         $transaction->setLiquidation(new \DateTime('2026-10-17'));
-        $transaction->setOperation(OperationEnum::DEBIT);
+        $transaction->setOperation($operation);
         $transaction->setOperationType($operationType);
         $transaction->setTicker($ticker);
         $transaction->setDescription($description);

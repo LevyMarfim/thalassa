@@ -19,6 +19,11 @@ use App\Enum\OperationEnum;
  */
 final class TransactionFilter
 {
+    public const SORT_MOVEMENT_DESC = 'movement_desc';
+    public const SORT_MOVEMENT_ASC = 'movement_asc';
+    public const SORT_TOTAL_DESC = 'total_desc';
+    public const SORT_TOTAL_ASC = 'total_asc';
+
     private ?Account $account = null;
     private ?OperationEnum $operation = null;
     private ?OperationType $operationType = null;
@@ -26,6 +31,7 @@ final class TransactionFilter
     private ?\DateTimeImmutable $movementFrom = null;
     private ?\DateTimeImmutable $movementTo = null;
     private ?string $description = null;
+    private string $sort = self::SORT_MOVEMENT_DESC;
 
     public function getAccount(): ?Account
     {
@@ -107,6 +113,25 @@ final class TransactionFilter
     public function setDescription(?string $description): static
     {
         $this->description = $description;
+
+        return $this;
+    }
+
+    public function getSort(): string
+    {
+        return $this->sort;
+    }
+
+    public function setSort(?string $sort): static
+    {
+        // A partially filled GET form submits null for the sort select. Keep the
+        // newest-first default, and ignore values outside the form's choices.
+        $this->sort = \in_array($sort, [
+            self::SORT_MOVEMENT_DESC,
+            self::SORT_MOVEMENT_ASC,
+            self::SORT_TOTAL_DESC,
+            self::SORT_TOTAL_ASC,
+        ], true) ? $sort : self::SORT_MOVEMENT_DESC;
 
         return $this;
     }

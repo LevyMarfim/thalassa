@@ -5,6 +5,8 @@ namespace App\Repository;
 use App\Dto\TransactionFilter;
 use App\Entity\Transaction;
 use App\Entity\User;
+use App\Enum\CurrencyEnum;
+use App\Enum\OperationEnum;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -76,9 +78,23 @@ class TransactionRepository extends ServiceEntityRepository
             }
         }
 
+        // Movement date remains the tie-breaker for every sort so a page of
+        // equally priced rows still has a stable, predictable order.
+        $sort = null === $filter ? TransactionFilter::SORT_MOVEMENT_DESC : $filter->getSort();
+        $direction = \in_array($sort, [
+            TransactionFilter::SORT_MOVEMENT_ASC,
+            TransactionFilter::SORT_TOTAL_ASC,
+        ], true) ? 'ASC' : 'DESC';
+
+        if (TransactionFilter::SORT_TOTAL_DESC === $sort || TransactionFilter::SORT_TOTAL_ASC === $sort) {
+            $qb->orderBy('t.totalPrice', $direction)
+                ->addOrderBy('t.movement', 'DESC');
+        } else {
+            $qb->orderBy('t.movement', $direction);
+        }
+
         return $qb
-            ->orderBy('t.movement', 'DESC')
-            ->addOrderBy('t.id', 'DESC')
+            ->addOrderBy('t.id', $direction)
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
@@ -92,5 +108,46 @@ class TransactionRepository extends ServiceEntityRepository
             ->setParameter('user', $user)
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    /**
+     * Whole-ledger net movement per currency, independent of the current list
+     * filter, so the summary strip keeps describing the user's finances even
+     * while the table is narrowed to one account or date range.
+     *
+     * The CASE mirrors findBalancesByUser(): the operation decides direction and
+     * ABS() tolerates legacy rows whose debit sign was stored inconsistently.
+     *
+     * @return array<string, array{currency: string, total: float, count: int}>
+     */
+    public function findTotalsByUser(User $user): array
+    {
+        $rows = $this->createQueryBuilder('t')
+            ->select('a.currency AS currency')
+            ->addSelect('COUNT(t.id) AS transaction_count')
+            ->addSelect(
+                'COALESCE(SUM(CASE WHEN t.operation = :credit '
+                .'THEN ABS(t.totalPrice) ELSE -ABS(t.totalPrice) END), 0) AS total'
+            )
+            ->innerJoin('t.account', 'a')
+            ->andWhere('t.user = :user')
+            ->setParameter('user', $user)
+            ->setParameter('credit', OperationEnum::CREDIT->value)
+            ->groupBy('a.currency')
+            ->getQuery()
+            ->getArrayResult();
+
+        $totals = [];
+        foreach ($rows as $row) {
+            $raw = $row['currency'];
+            $currency = $raw instanceof CurrencyEnum ? $raw->value : (string) $raw;
+            $totals[$currency] = [
+                'currency' => $currency,
+                'total' => round((float) $row['total'], 2),
+                'count' => (int) $row['transaction_count'],
+            ];
+        }
+
+        return $totals;
     }
 }

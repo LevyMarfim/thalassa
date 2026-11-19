@@ -7,6 +7,7 @@ use App\Dto\TransactionFilter;
 use App\Entity\Account;
 use App\Entity\Transaction;
 use App\Entity\User;
+use App\Enum\CurrencyEnum;
 use App\Form\TransactionFilterType;
 use App\Form\TransactionFormType;
 use App\Repository\AccountRepository;
@@ -41,10 +42,28 @@ final class TransactionController extends AbstractController
         $filterForm = $this->createForm(TransactionFilterType::class, $filter, ['user' => $user]);
         $filterForm->handleRequest($request);
 
+        $transactions = $transactionRepository->findByUser($user, $filter);
+
+        // Deliberately unfiltered: the strip describes the whole ledger, while
+        // the table below may be narrowed to one account or date range.
+        $currencySummaries = [];
+        foreach ($transactionRepository->findTotalsByUser($user) as $total) {
+            $currency = CurrencyEnum::from($total['currency']);
+            $currencySummaries[] = [
+                'currency' => $currency,
+                'symbol' => $currency->symbol(),
+                'total' => $total['total'],
+                'count' => $total['count'],
+            ];
+        }
+
         return $this->render('transactions/index.html.twig', [
             'filterForm' => $filterForm,
-            'transactions' => $transactionRepository->findByUser($user, $filter),
+            'filter' => $filter,
+            'transactions' => $transactions,
             'filteredAccount' => $filter->getAccount(),
+            'transactionCount' => $transactionRepository->countByUser($user),
+            'currencySummaries' => $currencySummaries,
         ]);
     }
 

@@ -5,79 +5,102 @@
 {% block title %}New transaction · FinFlow{% endblock %}
 
 {% block dashboard_content %}
-        <header class="dash-header">
-            <h1>New transaction</h1>
-            <p>Record a movement in BRL or USD.</p>
+        <header class="dash-header dash-header--split">
+            <div>
+                <h1>New transaction</h1>
+                <p>Record a movement in BRL or USD.</p>
+            </div>
+            <a class="btn btn--ghost" href="{{ path('app_transactions', filteredAccount ? {account: filteredAccount.id} : {}) }}">Cancel</a>
         </header>
 
         <div class="dash-grid">
-            <section class="card" aria-labelledby="new-heading">
-                <h2 id="new-heading">Transaction</h2>
+            <section class="card card--wide" aria-labelledby="new-heading">
+                <h2 id="new-heading">Transaction details</h2>
+                <p class="help-text">The essentials first; cost-basis details can be left blank.</p>
 
-                {{ form_start(form, {attr: {class: 'tx-form', novalidate: 'novalidate'}}) }}
-                    <div class="form-field form-field--medium">
-                        {{ form_label(form.account, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.account) }}
-                        {{ form_errors(form.account) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(form.movement, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.movement) }}
-                        {{ form_errors(form.movement) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(form.liquidation, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.liquidation) }}
-                        {{ form_help(form.liquidation) }}
-                        {{ form_errors(form.liquidation) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(form.operation, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.operation) }}
-                        {{ form_errors(form.operation) }}
-                    </div>
-                    <div class="form-field form-field--medium">
-                        {{ form_label(form.operationType, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.operationType) }}
-                        {{ form_errors(form.operationType) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(form.totalPrice, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.totalPrice) }}
-                        {{ form_errors(form.totalPrice) }}
-                    </div>
-                    <div class="form-field form-field--wide">
-                        {{ form_label(form.description, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.description, {attr: {class: 'form-input'}}) }}
-                        {{ form_errors(form.description) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(form.ticker, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.ticker) }}
-                        {{ form_errors(form.ticker) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(form.amount, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.amount) }}
-                        {{ form_errors(form.amount) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(form.unitPrice, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.unitPrice) }}
-                        {{ form_errors(form.unitPrice) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(form.market, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.market) }}
-                        {{ form_errors(form.market) }}
-                    </div>
-                    <div class="form-field">
-                        {{ form_label(form.invoice, null, {label_attr: {class: 'form-label'}}) }}
-                        {{ form_widget(form.invoice) }}
-                        {{ form_errors(form.invoice) }}
-                    </div>
+                {{ form_start(form, {attr: {class: 'tx-form-shell', novalidate: 'novalidate'}}) }}
+                    {# Root errors (CSRF, validation at the form level) have no
+                       field to attach to, so render them once up front. #}
+                    {{ form_errors(form) }}
 
-                    <button type="submit" class="btn btn--primary btn--block">Add transaction</button>
+                    <fieldset class="tx-form-section">
+                        <legend>Essential details</legend>
+                        <div class="tx-form">
+                            <div class="form-field form-field--medium">
+                                {{ form_label(form.account, null, {label_attr: {class: 'form-label'}}) }}
+                                {{ form_widget(form.account) }}
+                                {{ form_errors(form.account) }}
+                            </div>
+                            <div class="form-field">
+                                {{ form_label(form.movement, null, {label_attr: {class: 'form-label'}}) }}
+                                {{ form_widget(form.movement) }}
+                                {{ form_errors(form.movement) }}
+                            </div>
+                            <div class="form-field">
+                                {{ form_label(form.liquidation, null, {label_attr: {class: 'form-label'}}) }}
+                                {{ form_widget(form.liquidation) }}
+                                {{ form_help(form.liquidation) }}
+                                {{ form_errors(form.liquidation) }}
+                            </div>
+                            <div class="form-field">
+                                {{ form_label(form.operation, null, {label_attr: {class: 'form-label'}}) }}
+                                {{ form_widget(form.operation) }}
+                                {{ form_errors(form.operation) }}
+                            </div>
+                            <div class="form-field form-field--medium">
+                                {{ form_label(form.operationType, null, {label_attr: {class: 'form-label'}}) }}
+                                {{ form_widget(form.operationType) }}
+                                {{ form_errors(form.operationType) }}
+                            </div>
+                            <div class="form-field">
+                                {{ form_label(form.totalPrice, null, {label_attr: {class: 'form-label'}}) }}
+                                {{ form_widget(form.totalPrice) }}
+                                {{ form_help(form.totalPrice) }}
+                                {{ form_errors(form.totalPrice) }}
+                            </div>
+                            <div class="form-field form-field--wide">
+                                {{ form_label(form.description, null, {label_attr: {class: 'form-label'}}) }}
+                                {{ form_widget(form.description, {attr: {class: 'form-input'}}) }}
+                                {{ form_errors(form.description) }}
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="tx-form-section tx-form-section--optional">
+                        <legend>Optional details</legend>
+                        <p class="help-text">Use these when the transaction involves an investment.</p>
+                        <div class="tx-form">
+                            <div class="form-field">
+                                {{ form_label(form.ticker, null, {label_attr: {class: 'form-label'}}) }}
+                                {{ form_widget(form.ticker) }}
+                                {{ form_errors(form.ticker) }}
+                            </div>
+                            <div class="form-field">
+                                {{ form_label(form.amount, null, {label_attr: {class: 'form-label'}}) }}
+                                {{ form_widget(form.amount) }}
+                                {{ form_errors(form.amount) }}
+                            </div>
+                            <div class="form-field">
+                                {{ form_label(form.unitPrice, null, {label_attr: {class: 'form-label'}}) }}
+                                {{ form_widget(form.unitPrice) }}
+                                {{ form_errors(form.unitPrice) }}
+                            </div>
+                            <div class="form-field">
+                                {{ form_label(form.market, null, {label_attr: {class: 'form-label'}}) }}
+                                {{ form_widget(form.market) }}
+                                {{ form_errors(form.market) }}
+                            </div>
+                            <div class="form-field">
+                                {{ form_label(form.invoice, null, {label_attr: {class: 'form-label'}}) }}
+                                {{ form_widget(form.invoice) }}
+                                {{ form_errors(form.invoice) }}
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div class="tx-form__actions">
+                        <button type="submit" class="btn btn--primary">Add transaction</button>
+                    </div>
                 {{ form_end(form) }}
 
                 <p class="card__back">

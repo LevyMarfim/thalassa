@@ -3,8 +3,11 @@
 
 namespace App\Controller;
 
+use App\Dto\AccountFilter;
 use App\Entity\Account;
 use App\Entity\User;
+use App\Enum\CurrencyEnum;
+use App\Form\AccountFilterType;
 use App\Form\AccountFormType;
 use App\Repository\AccountRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -25,6 +28,12 @@ final class AccountController extends AbstractController
         $user = $this->getUser();
         \assert($user instanceof User);
 
+        // A GET filter form: a filtered list is a URL that can be bookmarked
+        // and shared (within the same account, of course).
+        $filter = new AccountFilter();
+        $filterForm = $this->createForm(AccountFilterType::class, $filter);
+        $filterForm->handleRequest($request);
+
         $account = new Account();
         $account->setUser($user);
 
@@ -39,12 +48,46 @@ final class AccountController extends AbstractController
         }
 
         // One query for every balance, rather than one per account.
+        $allAccounts = $accountRepository->findByUser($user);
         $balances = $accountRepository->findBalancesByUser($user);
+
+        // The summary deliberately uses every account, not the filtered rows:
+        // it is a picture of the whole ledger, not of the current search.
+        $currencySummaries = [];
+        foreach (CurrencyEnum::cases() as $currency) {
+            $owned = array_filter(
+                $allAccounts,
+                static fn (Account $item): bool => $item->getCurrency() === $currency
+            );
+            if ([] === $owned) {
+                continue;
+            }
+
+            $total = 0.0;
+            foreach ($owned as $item) {
+                $total += $balances[$item->getId()] ?? 0.0;
+            }
+
+            $currencySummaries[] = [
+                'currency' => $currency,
+                'symbol' => $currency->symbol(),
+                'total' => round($total, 2),
+                'count' => count($owned),
+            ];
+        }
 
         return $this->render('accounts/index.html.twig', [
             'form' => $form,
-            'accounts' => $accountRepository->findByUser($user),
+            'filterForm' => $filterForm,
+            'filter' => $filter,
+            'accounts' => $accountRepository->findByUser($user, $filter),
             'balances' => $balances,
+            'currencySummaries' => $currencySummaries,
+            'accountCount' => count($allAccounts),
+            'activeCount' => count(array_filter(
+                $allAccounts,
+                static fn (Account $item): bool => $item->isActive()
+            )),
         ]);
     }
 
@@ -53,8 +96,13 @@ final class AccountController extends AbstractController
         Request $request,
         Account $account,
         EntityManagerInterface $entityManager,
+        AccountRepository $accountRepository,
     ): Response {
         $this->denyAccessUnlessOwned($account);
+
+        $user = $this->getUser();
+        \assert($user instanceof User);
+        $balance = $accountRepository->findBalancesByUser($user)[$account->getId()] ?? 0.0;
 
         $form = $this->createForm(AccountFormType::class, $account);
         $form->handleRequest($request);
@@ -68,6 +116,7 @@ final class AccountController extends AbstractController
         return $this->render('accounts/edit.html.twig', [
             'account' => $account,
             'form' => $form,
+            'balance' => $balance,
         ]);
     }
 

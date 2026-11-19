@@ -11,6 +11,7 @@ use App\Enum\OperationEnum;
 use App\Repository\AccountRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 final class AccountControllerTest extends WebTestCase
@@ -59,6 +60,107 @@ final class AccountControllerTest extends WebTestCase
             'a.type-list__name.type-list__link[href="/transactions?account=%d"]',
             $account->getId()
         )));
+    }
+
+    public function testIndexFiltersByNameCurrencyAndStatus(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $nubank = $this->createAccount($this->uniqueName('Nubank'));
+        $xp = $this->createAccount($this->uniqueName('XP'), null, CurrencyEnum::USD);
+        $old = $this->createAccount($this->uniqueName('Old'), null, CurrencyEnum::BRL, false);
+
+        $crawler = $client->request('GET', '/accounts');
+        self::assertCount(1, $crawler->filter('form[name="account_filter"]'));
+
+        $crawler = $client->request('GET', sprintf(
+            '/accounts?account_filter[name]=%s',
+            urlencode(mb_strtolower(substr($nubank->getName(), 0, 6)))
+        ));
+        self::assertSelectorTextContains('.account-list', $nubank->getName());
+        self::assertSelectorTextNotContains('.account-list', $xp->getName());
+        self::assertSelectorTextNotContains('.account-list', $old->getName());
+        self::assertSelectorTextContains('.tx-filter', 'Filtered view');
+
+        $crawler = $client->request('GET', '/accounts?account_filter[currency]=USD');
+        self::assertSelectorTextContains('.account-list', $xp->getName());
+        self::assertSelectorTextNotContains('.account-list', $nubank->getName());
+
+        $crawler = $client->request('GET', '/accounts?account_filter[status]=inactive');
+        self::assertSelectorTextContains('.account-list', $old->getName());
+        self::assertSelectorTextNotContains('.account-list', $nubank->getName());
+        self::assertCount(1, $crawler->filter('.account-list .account-badge--inactive'));
+    }
+
+    public function testIndexSortsAccountsByBalance(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $small = $this->createAccount($this->uniqueName('Small'));
+        $large = $this->createAccount($this->uniqueName('Large'));
+        $empty = $this->createAccount($this->uniqueName('Empty'));
+        $this->attachTransactionTo($small, OperationEnum::CREDIT, 100.00);
+        $this->attachTransactionTo($large, OperationEnum::CREDIT, 300.00);
+
+        // The badge text is inside the name link, so strip it before comparing.
+        $names = static function (Crawler $crawler): array {
+            return $crawler->filter('.account-list .type-list__name')->each(
+                static fn (Crawler $node): string => trim(
+                    preg_replace('/\s+(Active|Inactive)\s*$/', '', trim($node->text())) ?? ''
+                )
+            );
+        };
+
+        $crawler = $client->request('GET', '/accounts?account_filter[sort]=balance_desc');
+        self::assertSame([$large->getName(), $small->getName(), $empty->getName()], $names($crawler));
+
+        $crawler = $client->request('GET', '/accounts?account_filter[sort]=balance_asc');
+        self::assertSame([$empty->getName(), $small->getName(), $large->getName()], $names($crawler));
+    }
+
+    public function testIndexSummarisesBalancesPerCurrency(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $brl = $this->createAccount($this->uniqueName('BRL'));
+        $usd = $this->createAccount($this->uniqueName('USD'), null, CurrencyEnum::USD);
+        $this->attachTransactionTo($brl, OperationEnum::CREDIT, 100.00);
+        $this->attachTransactionTo($brl, OperationEnum::DEBIT, 30.00);
+        $this->attachTransactionTo($usd, OperationEnum::CREDIT, 50.00);
+
+        $crawler = $client->request('GET', '/accounts');
+
+        $brlSummary = $crawler->filter('.account-summary__item')->reduce(
+            static fn (Crawler $item): bool => str_contains($item->text(), 'BRL total')
+        );
+        self::assertCount(1, $brlSummary);
+        self::assertStringContainsString('R$ 70,00', $brlSummary->text());
+
+        $usdSummary = $crawler->filter('.account-summary__item')->reduce(
+            static fn (Crawler $item): bool => str_contains($item->text(), 'USD total')
+        );
+        self::assertCount(1, $usdSummary);
+        self::assertStringContainsString('US$ 50,00', $usdSummary->text());
+        self::assertSelectorTextContains('.account-summary__item--muted', '2 active');
+    }
+
+    public function testEditPageShowsBalanceAndContextLinks(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $account = $this->createAccount($this->uniqueName('Edit'));
+        $this->attachTransactionTo($account, OperationEnum::CREDIT, 125.50);
+
+        $crawler = $client->request('GET', sprintf('/accounts/%d/edit', $account->getId()));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('.account-edit__meta', '125,50');
+        self::assertGreaterThanOrEqual(3, $crawler->filter('.help-text')->count());
+        self::assertCount(1, $crawler->filter(sprintf('a[href="/transactions?account=%d"]', $account->getId())));
+        self::assertCount(1, $crawler->filter('.dash-header a[href="/accounts"]'));
     }
 
     public function testIndexDoesNotShowOtherUsersAccounts(): void
@@ -376,8 +478,12 @@ final class AccountControllerTest extends WebTestCase
         return sprintf('%s %s', $prefix, strtoupper(substr(uniqid(), -5)));
     }
 
-    private function createAccount(string $name, ?User $owner = null): Account
-    {
+    private function createAccount(
+        string $name,
+        ?User $owner = null,
+        CurrencyEnum $currency = CurrencyEnum::BRL,
+        bool $active = true,
+    ): Account {
         $em = $this->entityManager();
         $user = $em->getRepository(User::class)->find(($owner ?? $this->currentUser)?->getId());
         \assert($user instanceof User);
@@ -385,7 +491,8 @@ final class AccountControllerTest extends WebTestCase
         $account = new Account();
         $account->setUser($user);
         $account->setName($name);
-        $account->setCurrency(CurrencyEnum::BRL);
+        $account->setCurrency($currency);
+        $account->setActive($active);
 
         $em->persist($account);
         $em->flush();

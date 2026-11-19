@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Dto\AccountFilter;
 use App\Entity\Account;
 use App\Entity\User;
 use App\Enum\OperationEnum;
@@ -23,14 +24,55 @@ class AccountRepository extends ServiceEntityRepository
      * Account is only scoped by this column, so an unscoped query would leak
      * one user's accounts to another.
      *
+     * A filter can only shrink the result set: the user scope is applied first
+     * and every criterion is an additional AND. Balance sorting reuses the
+     * same signed sum as findBalancesByUser(), so the order agrees with the
+     * balances displayed next to each row.
+     *
      * @return Account[]
      */
-    public function findByUser(User $user): array
+    public function findByUser(User $user, ?AccountFilter $filter = null): array
     {
-        return $this->createQueryBuilder('a')
+        $qb = $this->createQueryBuilder('a')
             ->andWhere('a.user = :user')
-            ->setParameter('user', $user)
-            ->orderBy('a.name', 'ASC')
+            ->setParameter('user', $user);
+
+        if (null !== $filter) {
+            $name = $filter->getName();
+            if (null !== $name && '' !== trim($name)) {
+                $qb->andWhere('LOWER(a.name) LIKE :name')
+                    ->setParameter('name', '%'.mb_strtolower(trim($name)).'%');
+            }
+
+            if (null !== $filter->getCurrency()) {
+                $qb->andWhere('a.currency = :currency')
+                    ->setParameter('currency', $filter->getCurrency());
+            }
+
+            if (AccountFilter::STATUS_ACTIVE === $filter->getStatus()) {
+                $qb->andWhere('a.active = true');
+            } elseif (AccountFilter::STATUS_INACTIVE === $filter->getStatus()) {
+                $qb->andWhere('a.active = false');
+            }
+
+            $sort = $filter->getSort();
+            if (AccountFilter::SORT_BALANCE_DESC === $sort || AccountFilter::SORT_BALANCE_ASC === $sort) {
+                $qb->leftJoin('a.transactions', 't')
+                    ->addSelect(
+                        'COALESCE(SUM(CASE WHEN t.operation = :credit '
+                        .'THEN ABS(t.totalPrice) ELSE -ABS(t.totalPrice) END), 0) AS HIDDEN balance'
+                    )
+                    ->setParameter('credit', OperationEnum::CREDIT->value)
+                    ->groupBy('a.id')
+                    ->addOrderBy(
+                        'balance',
+                        AccountFilter::SORT_BALANCE_DESC === $sort ? 'DESC' : 'ASC'
+                    );
+            }
+        }
+
+        // Always break ties by name so the order is stable across requests.
+        return $qb->addOrderBy('a.name', 'ASC')
             ->getQuery()
             ->getResult();
     }
