@@ -62,6 +62,38 @@ final class HomeControllerTest extends WebTestCase
     }
 
     /**
+     * The Accounts card uses the same shortcut as the Accounts page: clicking
+     * an account opens its transactions with that account already filtered.
+     */
+    public function testHomeAccountNameLinksToFilteredTransactions(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser(sprintf('home-account-link-%s', uniqid()));
+        $client->loginUser($user);
+
+        $date = (new \DateTimeImmutable('now', new \DateTimeZone('America/Sao_Paulo')))
+            ->format('Y-m-10');
+        $account = $this->seedChartAccount($user, CurrencyEnum::BRL, [
+            [$date, OperationEnum::CREDIT, 100.00],
+        ]);
+
+        $crawler = $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+        $link = $crawler->filter(sprintf(
+            'section[aria-labelledby="accounts-heading"] a.type-list__name[href="/transactions?account=%d"]',
+            $account->getId(),
+        ));
+        self::assertCount(1, $link);
+        self::assertStringContainsString($account->getName(), $link->text());
+
+        $client->click($link->link());
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('.tx-filter', $account->getName());
+        self::assertSelectorTextContains('.tx-table', sprintf('Chart %s', $date));
+    }
+
+    /**
      * A debit is money out, so the activity card shows it negative — the same
      * direction the account balance sums with.
      */

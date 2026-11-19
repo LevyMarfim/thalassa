@@ -247,6 +247,36 @@ final class TransactionControllerTest extends WebTestCase
         self::assertCount(1, $crawler->filter('.card__back a[href="/transactions"]'));
     }
 
+    public function testNewTransactionListsOperationTypesAlphabetically(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        // Insert in deliberately non-alphabetical order, with mixed case.
+        $em = $this->entityManager();
+        foreach (['zebra transfer', 'Alpha PIX', 'beta bill'] as $name) {
+            $type = new OperationType();
+            $type->setType($name);
+            $em->persist($type);
+        }
+        $em->flush();
+        $em->clear();
+
+        $crawler = $client->request('GET', '/transactions/new');
+
+        $labels = $crawler->filter('select[name="transaction_form[operationType]"] option')
+            ->each(static fn (Crawler $option): string => trim($option->text()));
+        // The first option is the "Select…" placeholder, not a type.
+        array_shift($labels);
+        self::assertContains('Alpha PIX', $labels);
+        self::assertContains('beta bill', $labels);
+        self::assertContains('zebra transfer', $labels);
+
+        $expected = $labels;
+        usort($expected, 'strcasecmp');
+        self::assertSame($expected, $labels);
+    }
+
     public function testAnonymousNewRedirectsToLogin(): void
     {
         static::createClient()->request('GET', '/transactions/new');
@@ -395,6 +425,11 @@ final class TransactionControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         $form = $crawler->filter('form[name="transaction_form"]')->form();
         self::assertSame((string) $accountA->getId(), $form->get('transaction_form[account]')->getValue());
+        // Leaving the form the same way preserves the account filter.
+        self::assertCount(
+            1,
+            $crawler->filter(sprintf('.card__back a[href="/transactions?account=%d"]', $accountA->getId()))
+        );
     }
 
     public function testCreatingFromFilteredViewKeepsTheFilter(): void

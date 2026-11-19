@@ -81,7 +81,7 @@
                 {{ form_end(form) }}
 
                 <p class="card__back">
-                    <a href="{{ path('app_transactions') }}">← Back to transactions</a>
+                    <a href="{{ path('app_transactions', filteredAccount ? {account: filteredAccount.id} : {}) }}">← Back to transactions</a>
                 </p>
             </section>
         </div>

@@ -90,6 +90,9 @@ final class TransactionController extends AbstractController
 
         return $this->render('transactions/new.html.twig', [
             'form' => $form,
+            // Carries the incoming account filter through the "Back" link so
+            // leaving the form returns to the same filtered list.
+            'filteredAccount' => $account,
         ]);
     }
 
