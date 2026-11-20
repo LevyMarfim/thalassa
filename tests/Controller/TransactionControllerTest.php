@@ -202,6 +202,11 @@ final class TransactionControllerTest extends WebTestCase
         self::assertStringNotContainsString($descB, $table->html());
         self::assertSelectorTextContains('.tx-filter', $accountA->getName());
         self::assertCount(1, $crawler->filter('.tx-filter a[href="/transactions"]'));
+        // The notice is part of the header, between the title block and the
+        // "Add transaction" button, before the summary cards.
+        $notice = $crawler->filter('.dash-header > .tx-filter');
+        self::assertCount(1, $notice);
+        self::assertSame('Add transaction', trim($notice->nextAll()->filter('a.btn')->text()));
     }
 
     /**
@@ -1249,6 +1254,86 @@ final class TransactionControllerTest extends WebTestCase
         self::assertSame(OperationEnum::DEBIT, $updated->getOperation());
         self::assertEqualsWithDelta(-1300.00, $updated->getTotalPrice(), 0.001);
         self::assertNull($this->findTransaction($transaction->getDescription()));
+    }
+
+    public function testEditKeepsTheAccountFilter(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $data = $this->seedTransactionData();
+
+        $visible = $this->uniqueDescription('EDIT-KEEP');
+        $hidden = $this->uniqueDescription('EDIT-HIDE');
+        $this->createTransaction($visible, 10.00);
+        $this->createAccountWithTransaction($hidden, 20.00);
+
+        $filteredUrl = sprintf('/transactions?account=%d', $data['account']->getId());
+        $crawler = $client->request('GET', $filteredUrl);
+        self::assertSelectorTextContains('.tx-table', $visible);
+        self::assertSelectorTextNotContains('.tx-table', $hidden);
+
+        $editLink = $crawler->filter('.tx-table a.type-list__edit')->link();
+        self::assertStringContainsString(sprintf('account=%d', $data['account']->getId()), $editLink->getUri());
+
+        $crawler = $client->click($editLink);
+        self::assertResponseIsSuccessful();
+        $edited = $this->uniqueDescription('EDIT-SAVED');
+        $form = $crawler->filter('form[name="transaction_form"]')->form([
+            'transaction_form[description]' => $edited,
+        ]);
+        self::assertStringContainsString(sprintf('account=%d', $data['account']->getId()), $form->getUri());
+        $client->submit($form);
+
+        self::assertResponseRedirects($filteredUrl);
+        $crawler = $client->followRedirect();
+        self::assertSelectorTextContains('.tx-filter', $data['account']->getName());
+        self::assertSelectorTextContains('.tx-table', $edited);
+        self::assertSelectorTextNotContains('.tx-table', $hidden);
+    }
+
+    public function testEditKeepsSubmittedFilterFormValues(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $credit = $this->uniqueDescription('EDIT-CREDIT');
+        $debit = $this->uniqueDescription('EDIT-DEBIT');
+        $this->createTransaction($credit, 20.00, null, OperationEnum::CREDIT, '2026-11-20');
+        $this->createTransaction($debit, 10.00, null, OperationEnum::DEBIT, '2026-10-15');
+
+        $crawler = $client->request('GET', '/transactions');
+        $filterForm = $crawler->filter('form[name="transaction_filter"]')->form([
+            'transaction_filter[operation]' => 'CREDIT',
+        ]);
+        $crawler = $client->submit($filterForm);
+        self::assertSelectorTextContains('.tx-table', $credit);
+        self::assertSelectorTextNotContains('.tx-table', $debit);
+
+        $editLink = $crawler->filter('.tx-table a.type-list__edit')->link();
+        self::assertStringContainsString('transaction_filter', $editLink->getUri());
+        self::assertStringContainsString('CREDIT', $editLink->getUri());
+
+        $crawler = $client->click($editLink);
+        $edited = $this->uniqueDescription('EDIT-CREDIT-SAVED');
+        $form = $crawler->filter('form[name="transaction_form"]')->form([
+            'transaction_form[description]' => $edited,
+        ]);
+        self::assertStringContainsString('transaction_filter', $form->getUri());
+        self::assertStringContainsString('CREDIT', $form->getUri());
+        $client->submit($form);
+
+        self::assertResponseRedirects();
+        $location = $client->getResponse()->headers->get('Location');
+        self::assertIsString($location);
+        self::assertStringContainsString('transaction_filter', $location);
+        self::assertStringContainsString('CREDIT', $location);
+
+        $crawler = $client->followRedirect();
+        self::assertSelectorTextContains('.tx-table', $edited);
+        self::assertSelectorTextNotContains('.tx-table', $debit);
+        $restoredFilter = $crawler->filter('form[name="transaction_filter"]')->form();
+        self::assertSame('CREDIT', $restoredFilter['transaction_filter[operation]']->getValue());
     }
 
     public function testEditForeignTransactionReturnsNotFound(): void

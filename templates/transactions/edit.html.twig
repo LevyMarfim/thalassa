@@ -10,7 +10,7 @@
                 <h1>Edit transaction</h1>
                 <p>{{ transaction.description }}</p>
             </div>
-            <a class="btn btn--ghost" href="{{ path('app_transactions') }}">Cancel</a>
+            <a class="btn btn--ghost" href="{{ path('app_transactions', listQuery) }}">Cancel</a>
         </header>
 
         <div class="dash-grid">
@@ -38,7 +38,10 @@
                     </div>
                 </div>
 
-                {{ form_start(form, {attr: {class: 'tx-form-shell', novalidate: 'novalidate'}}) }}
+                {{ form_start(form, {
+                    action: path('app_transactions_edit', {id: transaction.id}|merge(listQuery)),
+                    attr: {class: 'tx-form-shell', novalidate: 'novalidate'}
+                }) }}
                     {# Root errors have no field of their own; render them once. #}
                     {{ form_errors(form) }}
 
@@ -123,7 +126,7 @@
                 {{ form_end(form) }}
 
                 <p class="card__back">
-                    <a href="{{ path('app_transactions') }}">← Back to transactions</a>
+                    <a href="{{ path('app_transactions', listQuery) }}">← Back to transactions</a>
                 </p>
             </section>
         </div>

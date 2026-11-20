@@ -11,15 +11,14 @@
                 <h1>Transactions</h1>
                 <p>Your movements in BRL and USD.</p>
             </div>
+            {% if filteredAccount %}
+                <p class="tx-filter">
+                    Showing only <strong>{{ filteredAccount.name }}</strong>
+                    <a href="{{ path('app_transactions') }}">Show all</a>
+                </p>
+            {% endif %}
             <a class="btn btn--primary" href="{{ path('app_transactions_new', filteredAccount ? {account: filteredAccount.id} : {}) }}">Add transaction</a>
         </header>
-
-        {% if filteredAccount %}
-            <p class="tx-filter">
-                Showing only <strong>{{ filteredAccount.name }}</strong>
-                <a href="{{ path('app_transactions') }}">Show all</a>
-            </p>
-        {% endif %}
 
         <div class="tx-layout">
             {% if currencySummaries is not empty %}
@@ -206,8 +205,8 @@
                                             {{ transaction.signedTotalPrice|number_format(2, ',', '.') }}
                                         </td>
                                         <td class="tx-table__actions">
-                                            <a class="type-list__edit" href="{{ path('app_transactions_edit', {id: transaction.id}) }}">Edit</a>
-                                            <form class="type-list__delete-form" method="post" action="{{ path('app_transactions_delete', {id: transaction.id}) }}" onsubmit="return confirm('Delete this transaction?');">
+                                            <a class="type-list__edit" href="{{ path('app_transactions_edit', {id: transaction.id}|merge(listQuery)) }}">Edit</a>
+                                            <form class="type-list__delete-form" method="post" action="{{ path('app_transactions_delete', {id: transaction.id}|merge(listQuery)) }}" onsubmit="return confirm('Delete this transaction?');">
                                                 <input type="hidden" name="_token" value="{{ csrf_token('delete-transaction') }}">
                                                 <button type="submit" class="type-list__delete">Delete</button>
                                             </form>

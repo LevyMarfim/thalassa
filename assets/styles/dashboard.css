@@ -1277,6 +1277,14 @@ a.type-list__name:hover {
 
 .tx-filter a:hover { text-decoration: underline; }
 
+/* Inside the split page header the strip sits between the title and the
+   primary action, so it should not use the standalone block's offsets. */
+.dash-header .tx-filter {
+    align-self: center;
+    margin: 0;
+    color: var(--color-text);
+}
+
 /* -------------------- Compact transactions layout -------------------- */
 .tx-page .dash-header { margin-bottom: 18px; }
 

@@ -44,6 +44,10 @@ final class TransactionController extends AbstractController
         $filterForm = $this->createForm(TransactionFilterType::class, $filter, ['user' => $user]);
         $filterForm->handleRequest($request);
 
+        // Carried into edit/delete links so those round-trips can return to
+        // exactly this filtered view instead of the full ledger.
+        $listQuery = $this->listQuery($request);
+
         $transactions = $transactionRepository->findByUser($user, $filter);
 
         // The summary strip follows the same filter as the table and charts.
@@ -74,6 +78,7 @@ final class TransactionController extends AbstractController
         return $this->render('transactions/index.html.twig', [
             'filterForm' => $filterForm,
             'filter' => $filter,
+            'listQuery' => $listQuery,
             'transactions' => $transactions,
             'filteredAccount' => $filter->getAccount(),
             'transactionCount' => $transactionRepository->countByUser($user, $filter),
@@ -139,18 +144,23 @@ final class TransactionController extends AbstractController
     ): Response {
         $this->denyAccessUnlessOwned($transaction);
 
+        // The edit link, form action and final redirect all carry the same
+        // filter query, so saving (or cancelling) returns to the user's view.
+        $listQuery = $this->listQuery($request);
+
         $form = $this->createForm(TransactionFormType::class, $transaction);
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
             $entityManager->flush();
             $this->addFlash('success', 'Transaction updated.');
 
-            return $this->redirectToRoute('app_transactions');
+            return $this->redirectToRoute('app_transactions', $listQuery);
         }
 
         return $this->render('transactions/edit.html.twig', [
             'transaction' => $transaction,
             'form' => $form,
+            'listQuery' => $listQuery,
         ]);
     }
 
@@ -166,11 +176,37 @@ final class TransactionController extends AbstractController
             throw $this->createAccessDeniedException('Invalid CSRF token.');
         }
 
+        $listQuery = $this->listQuery($request);
+
         $entityManager->remove($transaction);
         $entityManager->flush();
         $this->addFlash('success', 'Transaction removed.');
 
-        return $this->redirectToRoute('app_transactions');
+        return $this->redirectToRoute('app_transactions', $listQuery);
+    }
+
+    /**
+     * The filter parameters worth carrying through an edit/delete round-trip.
+     * Both the legacy ?account= link and the filter form's nested
+     * transaction_filter[...] values are preserved; unrelated query keys are
+     * dropped so they cannot leak into the redirected listing.
+     *
+     * @return array<string, mixed>
+     */
+    private function listQuery(Request $request): array
+    {
+        $query = $request->query->all();
+        $params = [];
+
+        if (isset($query['account']) && \is_scalar($query['account'])) {
+            $params['account'] = $query['account'];
+        }
+
+        if (isset($query['transaction_filter']) && \is_array($query['transaction_filter'])) {
+            $params['transaction_filter'] = $query['transaction_filter'];
+        }
+
+        return $params;
     }
 
     /**
