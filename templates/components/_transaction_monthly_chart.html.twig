@@ -19,8 +19,10 @@
                 {months: 36, label: '3Y'},
                 {months: 60, label: '5Y'},
             ] %}
-                {# Never offer a window the filtered history does not cover. #}
-                {% if available_months >= range.months %}
+                {# Offer windows the history covers, plus the preselected window:
+                   a last movement in jun/22 can still open on 5Y even when the
+                   ledger itself is a few months shorter than 60. #}
+                {% if available_months >= range.months or range.months == chart.defaultRange %}
                     <button type="button"
                             class="chart-range__button"
                             data-action="transaction-chart#showRange"

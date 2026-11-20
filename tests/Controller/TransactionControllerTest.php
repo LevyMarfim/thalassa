@@ -452,7 +452,7 @@ final class TransactionControllerTest extends WebTestCase
         self::assertSame(['All'], $this->rangeLabels($panel));
     }
 
-    public function testMonthlyChartShowsOldActivityWithAnAllRange(): void
+    public function testMonthlyChartDefaultsToTheRangeCoveringOldActivity(): void
     {
         $client = static::createClient();
         $client->loginUser($this->createUser());
@@ -461,22 +461,62 @@ final class TransactionControllerTest extends WebTestCase
         $old = $this->uniqueDescription('CHART-OLD');
         $this->createTransaction($old, 90.00, null, OperationEnum::CREDIT, '2024-03-10');
 
-        // Before the range selector the chart was capped at 12 months and this
-        // transaction produced an empty panel. The whole history is sent now.
+        // Stale activity no longer falls back to All: the chart opens on the
+        // shortest preset that still contains the last movement.
         $crawler = $client->request('GET', '/transactions');
         self::assertResponseIsSuccessful();
 
         $monthly = $this->chartData($crawler, 'monthly', 'BRL');
+        $expected = $this->expectedDefaultRange('2024-03-10');
         self::assertSame('mar/24', $monthly['labels'][0]);
         self::assertGreaterThan(12, \count($monthly['labels']));
-        self::assertSame(0, $monthly['defaultRange']);
+        self::assertSame($expected, $monthly['defaultRange']);
         self::assertSame(90.0, (float) array_sum($monthly['credits']));
 
         $panel = $crawler->filter('[data-transaction-chart-kind-value="monthly"]')->first();
-        $labels = $this->rangeLabels($panel);
-        self::assertContains('3M', $labels);
-        self::assertContains('1Y', $labels);
-        self::assertContains('All', $labels);
+        $label = $this->rangeLabel($expected);
+        self::assertContains($label, $this->rangeLabels($panel));
+        self::assertSame([$label], $this->pressedRanges($panel));
+        self::assertStringContainsString(
+            0 === $expected ? 'All time (' : 'Last '.$expected.' months',
+            $panel->filter('.chart-summary')->text()
+        );
+    }
+
+    public function testMonthlyChartDefaultsToFiveYearsForJun2022Activity(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $this->createTransaction($this->uniqueDescription('CHART-2022'), 75.00, null, OperationEnum::CREDIT, '2022-06-10');
+
+        $crawler = $client->request('GET', '/transactions');
+        $monthly = $this->chartData($crawler, 'monthly', 'BRL');
+        self::assertSame('jun/22', $monthly['labels'][0]);
+        self::assertSame($this->expectedDefaultRange('2022-06-10'), $monthly['defaultRange']);
+
+        // The 5Y button must be offered even when the ledger spans slightly
+        // fewer than 60 months, otherwise its preselected state is impossible.
+        $panel = $crawler->filter('[data-transaction-chart-kind-value="monthly"]')->first();
+        $label = $this->rangeLabel($monthly['defaultRange']);
+        self::assertContains($label, $this->rangeLabels($panel));
+        self::assertSame([$label], $this->pressedRanges($panel));
+    }
+
+    public function testMonthlyChartFallsBackToAllOnlyForVeryOldActivity(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $this->createTransaction($this->uniqueDescription('CHART-2019'), 25.00, null, OperationEnum::CREDIT, '2019-01-10');
+
+        $crawler = $client->request('GET', '/transactions');
+        $monthly = $this->chartData($crawler, 'monthly', 'BRL');
+        self::assertSame(0, $monthly['defaultRange']);
+
+        $panel = $crawler->filter('[data-transaction-chart-kind-value="monthly"]')->first();
         self::assertSame(['All'], $this->pressedRanges($panel));
         self::assertStringContainsString('All time (', $panel->filter('.chart-summary')->text());
     }
@@ -1620,6 +1660,41 @@ final class TransactionControllerTest extends WebTestCase
         return $panel->filter('.chart-range__button')
             ->reduce(static fn (Crawler $button): bool => 'true' === $button->attr('aria-pressed'))
             ->each(static fn (Crawler $button): string => trim($button->text()));
+    }
+
+    /**
+     * Mirrors the chart builder's rule: the shortest preset that still reaches
+     * the given last movement, with All as the fallback for older activity.
+     */
+    private function expectedDefaultRange(string $lastMovement): int
+    {
+        $timezone = new \DateTimeZone('America/Sao_Paulo');
+        $last = (new \DateTimeImmutable($lastMovement, $timezone))->modify('first day of this month');
+        $current = (new \DateTimeImmutable('now', $timezone))->modify('first day of this month');
+        $monthsAgo = ((int) $current->format('Y') - (int) $last->format('Y')) * 12
+            + ((int) $current->format('n') - (int) $last->format('n'));
+
+        return match (true) {
+            $monthsAgo <= 11 => 12,
+            $monthsAgo <= 23 => 24,
+            $monthsAgo <= 35 => 36,
+            $monthsAgo <= 59 => 60,
+            default => 0,
+        };
+    }
+
+    private function rangeLabel(int $months): string
+    {
+        return match ($months) {
+            3 => '3M',
+            6 => '6M',
+            12 => '1Y',
+            24 => '2Y',
+            36 => '3Y',
+            60 => '5Y',
+            0 => 'All',
+            default => throw new \InvalidArgumentException(sprintf('Unexpected range: %d', $months)),
+        };
     }
 
     private function createUser(): User

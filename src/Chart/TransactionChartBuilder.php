@@ -33,7 +33,7 @@ final class TransactionChartBuilder
      *     title: string,
      *     symbol: string,
      *     period: string,
-     *     defaultRange: int,
+     *     defaultRange: int, months in the starting range, 0 for All,
      *     labels: list<string>,
      *     credits: list<float>,
      *     debits: list<float>,
@@ -49,7 +49,7 @@ final class TransactionChartBuilder
         $period = $labels[0] === $labels[array_key_last($labels)]
             ? $labels[0]
             : $labels[0].' – '.$labels[array_key_last($labels)];
-        $recentMonths = \array_slice($monthKeys, -12);
+        $lastIndex = array_key_last($monthKeys);
         $grouped = [];
         foreach ($rows as $row) {
             $grouped[$row['currency']][$row['month']] = $row;
@@ -70,10 +70,26 @@ final class TransactionChartBuilder
                 $debits[] = round((float) ($row['debits'] ?? 0), 2);
             }
 
-            // A currency whose only movements are older than a year opens on
-            // All; otherwise the familiar 1Y view is the starting point.
-            $hasRecentActivity = [] !== array_intersect(array_keys($values), $recentMonths);
-            $defaultRange = \count($monthKeys) >= 12 && $hasRecentActivity ? 12 : 0;
+            // Open on the shortest preset that still contains this currency's
+            // most recent movement. A ledger last touched in jun/22 therefore
+            // starts at 5Y, one touched two years ago at 2Y, and only genuinely
+            // old ledgers fall back to All.
+            $activeIndexes = [];
+            foreach (array_keys($values) as $month) {
+                $index = array_search($month, $monthKeys, true);
+                if (false !== $index) {
+                    $activeIndexes[] = $index;
+                }
+            }
+            $monthsAgo = [] === $activeIndexes ? 0 : $lastIndex - max($activeIndexes);
+            $defaultRange = match (true) {
+                \count($monthKeys) < 12 => 0,
+                $monthsAgo <= 11 => 12,
+                $monthsAgo <= 23 => 24,
+                $monthsAgo <= 35 => 36,
+                $monthsAgo <= 59 => 60,
+                default => 0,
+            };
 
             $charts[] = [
                 'currency' => $currency->value,

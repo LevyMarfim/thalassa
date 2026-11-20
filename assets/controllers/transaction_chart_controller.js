@@ -13,6 +13,9 @@ const COMPACT = new Intl.NumberFormat('pt-BR', {
 
 const MUTED = '#64748b';
 
+/** Month counts offered by the range buttons, with 0 meaning All. */
+const RANGES = [0, 3, 6, 12, 24, 36, 60];
+
 /**
  * Two small charts for the Transactions page:
  *
@@ -42,11 +45,11 @@ export default class extends Controller {
         this.fullCredits = data.credits;
         this.fullDebits = data.debits;
 
-        // The builder picks All when the currency has no activity in the last
-        // year, so an old ledger opens on data instead of empty bars.
+        // The builder picks the shortest preset covering the currency's last
+        // movement (or All for very old data), so an old ledger opens on data
+        // instead of empty bars.
         const preferred = Number(data.defaultRange ?? -1);
-        this.rangeParam = Number.isInteger(preferred) && preferred >= 0
-            && (0 === preferred || this.fullLabels.length >= preferred)
+        this.rangeParam = RANGES.includes(preferred)
             ? preferred
             : (this.fullLabels.length >= 12 ? 12 : 0);
         this.range = 0 === this.rangeParam ? this.fullLabels.length : this.rangeParam;
