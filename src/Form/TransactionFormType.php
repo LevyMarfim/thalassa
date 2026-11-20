@@ -11,6 +11,7 @@ use App\Entity\User;
 use App\Enum\MarketEnum;
 use App\Enum\OperationEnum;
 use App\Repository\AccountRepository;
+use App\Repository\OperationTypeRepository;
 use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\DateType;
@@ -111,6 +112,13 @@ final class TransactionFormType extends AbstractType
                 'choice_label' => 'type',
                 'placeholder' => 'Select…',
                 'attr' => ['class' => 'form-input'],
+                // Insertion order is meaningless to someone picking a type,
+                // so sort by name rather than id. LOWER keeps the order
+                // natural even when names mix upper- and lower-case.
+                'query_builder' => static fn (OperationTypeRepository $repository) => $repository
+                    ->createQueryBuilder('o')
+                    ->orderBy('LOWER(o.type)', 'ASC')
+                    ->addOrderBy('o.type', 'ASC'),
                 'constraints' => [new NotBlank(message: 'Please choose an operation type.')],
             ])
             ->add('ticker', EntityType::class, [
@@ -181,6 +189,7 @@ final class TransactionFormType extends AbstractType
             ->add('totalPrice', NumberType::class, [
                 'label' => 'Total price',
                 'scale' => 2,
+                'help' => 'Enter a positive amount; debit totals are stored as negative values.',
                 // Money is entered as a plain decimal; kept as a float because that
                 // is how the entity/column are defined today (see note in summary).
                 'attr' => [

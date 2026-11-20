@@ -1,0 +1,5 @@
+{# Absolute money moved by operation type, one doughnut per currency. Values
+   (not transaction counts) are currency-dependent, hence the separate panels. #}
+{% for chart in charts %}
+    {{ include('components/_value_doughnut.html.twig', {chart: chart, kind: 'types', caption: 'By operation type'}) }}
+{% endfor %}

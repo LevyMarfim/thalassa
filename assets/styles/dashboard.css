@@ -362,6 +362,108 @@ span.dash-nav__item { cursor: default; }
 
 .empty-state small { font-size: 0.8rem; }
 
+/* -------------------- Monthly balance chart -------------------- */
+.card__hint {
+    margin: -8px 0 16px;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+
+.chart-panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px;
+}
+
+.chart-panel { margin: 0; min-width: 0; }
+
+.chart-panel figcaption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.chart-range {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 2px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.14);
+}
+
+.chart-range__button {
+    border: 0;
+    background: transparent;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Operation-type picker for the monthly-by-type chart. Reuses the range
+   button styling so both selectors feel like the same control. */
+.chart-type-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: -2px 0 8px;
+    padding: 2px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.14);
+}
+
+.chart-type-picker .chart-range__button {
+    padding: 3px 7px;
+    font-size: 0.65rem;
+}
+
+.chart-range__button:hover {
+    color: var(--color-text);
+}
+
+.chart-range__button[aria-pressed="true"] {
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.chart-canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: clamp(240px, 34vw, 320px);
+}
+
+.chart-canvas-wrap canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.chart-summary {
+    margin: 10px 0 0;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+.chart-noscript {
+    margin: 12px 0 0;
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+}
+
 /* -------------------- Forms -------------------- */
 .settings-form {
     display: flex;
@@ -401,6 +503,15 @@ span.dash-nav__item { cursor: default; }
     outline: none;
     border-color: var(--color-primary);
     box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+}
+
+/* A full-width colour swatch looks like an empty bar, so keep the native
+   picker compact and let the help text explain what it controls. */
+.account-color-input {
+    max-width: 96px;
+    height: 42px;
+    padding: 4px;
+    cursor: pointer;
 }
 
 /* flatpickr popup calendar, on brand with the rest of the form. The vendor
@@ -490,6 +601,109 @@ span.dash-nav__item { cursor: default; }
     background: #fef2f2;
     border: 1px solid #fecaca;
     color: #b91c1c;
+}
+
+/* Flash messages: centered toasts, auto-dismissed by flash_controller.js.
+   --flash-duration is set by the controller from its `duration` value. */
+.flash-toasts {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: min(420px, calc(100vw - 32px));
+    pointer-events: none;
+}
+
+.flash-toast {
+    position: relative;
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
+    margin-bottom: 0;
+    padding-bottom: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+    animation: flash-toast-in 0.22s ease-out both;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.flash-toast--leaving {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+
+.flash-toast__message {
+    flex: 1;
+}
+
+.flash-toast__close {
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+.flash-toast__close:hover,
+.flash-toast__close:focus-visible {
+    opacity: 1;
+}
+
+.flash-toast__progress {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: rgba(15, 23, 42, 0.08);
+}
+
+.flash-toast__progress-bar {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: currentColor;
+    opacity: 0.55;
+    transform-origin: left center;
+    animation: flash-toast-progress var(--flash-duration, 5000ms) linear forwards;
+}
+
+/* Reading a message should not cost the remaining time. */
+.flash-toasts:hover .flash-toast__progress-bar,
+.flash-toasts:focus-within .flash-toast__progress-bar {
+    animation-play-state: paused;
+}
+
+@keyframes flash-toast-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes flash-toast-progress {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .flash-toast {
+        animation: none;
+        transition: none;
+    }
+
+    .flash-toast--leaving {
+        opacity: 0;
+    }
 }
 
 /* -------------------- Type list -------------------- */
@@ -680,6 +894,17 @@ a.type-list__name:hover {
 
 .account-balance--negative { color: #b91c1c; }
 
+/* Small swatch tying a list row to its line on the dashboard chart. */
+.account-color-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 8px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--color-border);
+    vertical-align: middle;
+}
+
 .account-badge {
     display: inline-block;
     font-size: 0.66rem;
@@ -695,6 +920,129 @@ a.type-list__name:hover {
 .account-badge--inactive {
     background: #f1f5f9;
     color: var(--color-text-muted);
+}
+
+.account-badge--active {
+    background: var(--color-primary-soft);
+    color: var(--color-primary-dark);
+}
+
+/* Overview strip: totals stay visible no matter how the list is filtered. */
+.account-summary__grid,
+.tx-summary__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+.account-summary__item,
+.tx-summary__item {
+    padding: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-primary-soft);
+}
+
+.account-summary__item--muted,
+.tx-summary__item--muted { background: #f8fafc; }
+
+.account-summary__label,
+.tx-summary__label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+}
+
+.account-summary__value,
+.tx-summary__value {
+    display: block;
+    margin-top: 6px;
+    font-size: 1.35rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.account-summary__value--negative,
+.tx-summary__value--negative { color: #b91c1c; }
+
+.account-summary__meta,
+.tx-summary__meta {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+
+.card__heading-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.card__heading-row h2 { margin-bottom: 16px; }
+
+.card__count {
+    margin-bottom: 16px;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+#new-account { scroll-margin-top: 24px; }
+
+/* Edit page: the current balance sits above the form as a sanity check. */
+.account-edit__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.account-edit__meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 150px;
+    padding: 12px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: #f8fafc;
+}
+
+.account-edit__label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+}
+
+.account-edit__meta-item .account-balance {
+    min-width: 0;
+    text-align: left;
+    font-size: 1.05rem;
+}
+
+@media (max-width: 640px) {
+    .account-list .type-list__row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        row-gap: 8px;
+    }
+
+    .account-list .type-list__name { grid-column: 1 / -1; }
+    .account-list .account-currency { grid-column: 1; }
+
+    .account-list .account-balance {
+        grid-column: 2;
+        min-width: 0;
+    }
+
+    .account-list .type-list__edit,
+    .account-list .type-list__delete-form { grid-column: span 1; }
 }
 
 /* -------------------- Transactions -------------------- */
@@ -744,12 +1092,79 @@ a.type-list__name:hover {
 .tx-form .form-field:has(.form-errors),
 .tx-form .form-field:has(ul) { align-self: stretch; }
 
+/* The create/edit forms are split into two labelled groups so a long form
+   reads as two short tasks instead of one wall of inputs. */
+.tx-form-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.tx-form-section {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.tx-form-section legend {
+    padding: 0 0 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.tx-form-section--optional {
+    border-top: 1px solid var(--color-border);
+}
+
+.tx-form-section--optional legend { padding-top: 16px; }
+
+.tx-form-section > .help-text { margin: 0 0 16px; }
+
+/* Edit page: a compact reminder of what is about to be changed. */
+.tx-edit__meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.tx-edit__meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: #f8fafc;
+}
+
+.tx-edit__label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+}
+
+.tx-edit__meta-item .account-balance {
+    min-width: 0;
+    text-align: left;
+    font-size: 1.05rem;
+}
+
 /* Date / select / number widgets inherit the shared .form-input look via their attr */
 .tx-form input[type="date"],
 .tx-form input[type="number"],
 .tx-form select { width: 100%; }
 
-.tx-table-wrap { overflow-x: auto; }
+.tx-table-wrap {
+    overflow: auto;
+    max-height: 70vh;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
 
 .tx-table {
     width: 100%;
@@ -758,13 +1173,17 @@ a.type-list__name:hover {
 }
 
 .tx-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f8fafc;
     text-align: left;
     font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--color-text-muted);
-    padding: 0 12px 10px;
+    padding: 12px;
     border-bottom: 1px solid var(--color-border);
     white-space: nowrap;
 }
@@ -776,7 +1195,23 @@ a.type-list__name:hover {
     color: var(--color-text);
 }
 
+.tx-table tbody tr:hover { background: #f8fafc; }
+
 .tx-table tbody tr:last-child td { border-bottom: none; }
+
+.tx-table__account {
+    font-weight: 600;
+    color: var(--color-primary-dark);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.tx-table__account:hover { text-decoration: underline; }
+
+.tx-table__date {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
 
 /*
  * Description is the only column that should flex. Every other cell is
@@ -859,6 +1294,94 @@ a.type-list__name:hover {
 
 .tx-filter a:hover { text-decoration: underline; }
 
+/* Inside the split page header the strip sits between the title and the
+   primary action, so it should not use the standalone block's offsets. */
+.dash-header .tx-filter {
+    align-self: center;
+    margin: 0;
+    color: var(--color-text);
+}
+
+/* -------------------- Compact dashboard layouts -------------------- */
+.tx-page .dash-header,
+.home-page .dash-header { margin-bottom: 18px; }
+
+/* Twelve columns give the charts a 2:1 split and let the filter form pack its
+   eight controls into one dense row on a wide screen. Everything collapses to
+   a single column before the table gets cramped. */
+.tx-layout,
+.home-layout {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 14px;
+    align-items: start;
+}
+
+.tx-span-12,
+.home-span-12 { grid-column: span 12; }
+.tx-span-8,
+.home-span-8 { grid-column: span 8; }
+.tx-span-6,
+.home-span-6 { grid-column: span 6; }
+.tx-span-4,
+.home-span-4 { grid-column: span 4; }
+
+.card--compact { padding: 16px 18px; }
+.card--compact h2 { margin-bottom: 12px; }
+.tx-layout .card__heading-row h2,
+.tx-layout .card__count { margin-bottom: 10px; }
+.tx-layout .tx-summary__item,
+.home-layout .tx-summary__item { padding: 12px 14px; }
+.tx-layout .empty-state,
+.home-layout .empty-state { padding: 4px 0; }
+
+.chart-panels--compact {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.chart-panel--compact figcaption {
+    margin-bottom: 8px;
+    font-size: 0.7rem;
+}
+
+.chart-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--color-primary-soft);
+    color: var(--color-primary-dark);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.chart-canvas-wrap--compact {
+    height: clamp(140px, 16vw, 175px);
+}
+
+.chart-panel--compact .chart-range__button {
+    padding: 3px 7px;
+    font-size: 0.65rem;
+}
+
+.chart-panel--compact .chart-summary {
+    margin-top: 8px;
+    font-size: 0.7rem;
+}
+
+.tx-filters .tx-form {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.tx-filters .form-input { padding: 10px 12px; }
+
+.tx-list .tx-table { font-size: 0.84rem; }
+
+.tx-list .tx-table th,
+.tx-list .tx-table td { padding: 9px 10px; }
+
 /* -------------------- Responsive -------------------- */
 @media (max-width: 900px) {
     /* The rail is desktop-only: down here the sidebar is hidden, so its
@@ -866,6 +1389,21 @@ a.type-list__name:hover {
     .dash { padding-left: 0; }
     .dash-sidebar { display: none; }
     .dash-grid { grid-template-columns: 1fr; }
+    .tx-layout,
+    .home-layout { grid-template-columns: 1fr; }
+    .tx-span-8,
+    .tx-span-6,
+    .tx-span-4,
+    .home-span-8,
+    .home-span-6,
+    .home-span-4 { grid-column: 1 / -1; }
+}
+
+@media (max-width: 640px) {
+    /* Auto-fit can leave only one column on a phone; a 2/3-column span would
+       create implicit columns and push the form sideways. */
+    .tx-form .form-field--wide,
+    .tx-form .form-field--medium { grid-column: 1 / -1; }
 }
 
 @media (max-width: 480px) {

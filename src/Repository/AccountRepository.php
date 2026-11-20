@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Dto\AccountFilter;
 use App\Entity\Account;
 use App\Entity\User;
 use App\Enum\OperationEnum;
@@ -23,14 +24,55 @@ class AccountRepository extends ServiceEntityRepository
      * Account is only scoped by this column, so an unscoped query would leak
      * one user's accounts to another.
      *
+     * A filter can only shrink the result set: the user scope is applied first
+     * and every criterion is an additional AND. Balance sorting reuses the
+     * same signed sum as findBalancesByUser(), so the order agrees with the
+     * balances displayed next to each row.
+     *
      * @return Account[]
      */
-    public function findByUser(User $user): array
+    public function findByUser(User $user, ?AccountFilter $filter = null): array
     {
-        return $this->createQueryBuilder('a')
+        $qb = $this->createQueryBuilder('a')
             ->andWhere('a.user = :user')
-            ->setParameter('user', $user)
-            ->orderBy('a.name', 'ASC')
+            ->setParameter('user', $user);
+
+        if (null !== $filter) {
+            $name = $filter->getName();
+            if (null !== $name && '' !== trim($name)) {
+                $qb->andWhere('LOWER(a.name) LIKE :name')
+                    ->setParameter('name', '%'.mb_strtolower(trim($name)).'%');
+            }
+
+            if (null !== $filter->getCurrency()) {
+                $qb->andWhere('a.currency = :currency')
+                    ->setParameter('currency', $filter->getCurrency());
+            }
+
+            if (AccountFilter::STATUS_ACTIVE === $filter->getStatus()) {
+                $qb->andWhere('a.active = true');
+            } elseif (AccountFilter::STATUS_INACTIVE === $filter->getStatus()) {
+                $qb->andWhere('a.active = false');
+            }
+
+            $sort = $filter->getSort();
+            if (AccountFilter::SORT_BALANCE_DESC === $sort || AccountFilter::SORT_BALANCE_ASC === $sort) {
+                $qb->leftJoin('a.transactions', 't')
+                    ->addSelect(
+                        'COALESCE(SUM(CASE WHEN t.operation = :credit '
+                        .'THEN ABS(t.totalPrice) ELSE -ABS(t.totalPrice) END), 0) AS HIDDEN balance'
+                    )
+                    ->setParameter('credit', OperationEnum::CREDIT->value)
+                    ->groupBy('a.id')
+                    ->addOrderBy(
+                        'balance',
+                        AccountFilter::SORT_BALANCE_DESC === $sort ? 'DESC' : 'ASC'
+                    );
+            }
+        }
+
+        // Always break ties by name so the order is stable across requests.
+        return $qb->addOrderBy('a.name', 'ASC')
             ->getQuery()
             ->getResult();
     }
@@ -98,6 +140,136 @@ class AccountRepository extends ServiceEntityRepository
         }
 
         return $balances;
+    }
+
+    /**
+     * Month-end balances for every account that has activity on or before the
+     * end of the current month.
+     *
+     * Unlike findBalancesByUser(), which answers "what is the balance now",
+     * this one answers "what was the balance at the end of each month". The
+     * opening balance is the signed sum of everything before the first month
+     * of the window, so the first plotted point already carries all older
+     * activity instead of starting the line at zero.
+     *
+     * The grouping is done in SQL with PostgreSQL's TO_CHAR because DQL has no
+     * date_trunc()/month-bucket function. Both queries join the account table
+     * and filter on its owner, never on the request input, so one user's
+     * ledger cannot leak into another's chart.
+     *
+     * @param int|null $months Number of calendar months to return, ending with
+     *                         the current one; null starts at the first month
+     *                         that has a transaction, i.e. all time
+     *
+     * @return array{
+     *     months: list<string>,
+     *     balances: array<int, list<float>>,
+     * } months are Y-m keys in chronological order; balances maps account id
+     *   to one float per month (balance at that month's end)
+     */
+    public function findMonthlyBalancesByUser(User $user, ?int $months = 12): array
+    {
+        $timezone = new \DateTimeZone('America/Sao_Paulo');
+        $currentMonth = (new \DateTimeImmutable('now', $timezone))
+            ->modify('first day of this month')
+            ->setTime(0, 0);
+        $connection = $this->getEntityManager()->getConnection();
+
+        if (null === $months) {
+            $earliest = $connection->executeQuery(
+                <<<SQL
+                    SELECT TO_CHAR(MIN(t.movement), 'YYYY-MM') AS earliest
+                    FROM app_transaction t
+                    INNER JOIN app_account a ON a.id = t.account_id
+                    WHERE a.user_id = :user
+                    SQL,
+                ['user' => $user->getId()],
+            )->fetchOne();
+
+            if (!\is_string($earliest) || '' === $earliest) {
+                return ['months' => [], 'balances' => []];
+            }
+
+            $firstMonth = \DateTimeImmutable::createFromFormat('!Y-m', $earliest, $timezone);
+            \assert($firstMonth instanceof \DateTimeImmutable);
+        } else {
+            $months = max(1, $months);
+            $firstMonth = $currentMonth->modify(\sprintf('-%d months', $months - 1));
+        }
+
+        $lastDay = $currentMonth->modify('last day of this month');
+
+        $monthKeys = [];
+        $cursor = $firstMonth;
+        while ($cursor <= $currentMonth) {
+            $monthKeys[] = $cursor->format('Y-m');
+            $cursor = $cursor->modify('first day of next month');
+        }
+
+        if ([] === $monthKeys) {
+            return ['months' => [], 'balances' => []];
+        }
+
+        // A debit is stored negative, but ABS() keeps this correct for legacy
+        // rows the same way findBalancesByUser() does.
+        $signedTotal = 'SUM(CASE WHEN t.operation = :credit THEN ABS(t.total_price) ELSE -ABS(t.total_price) END)';
+
+        $openingRows = $connection->executeQuery(
+            <<<SQL
+                SELECT t.account_id AS account_id, $signedTotal AS balance
+                FROM app_transaction t
+                INNER JOIN app_account a ON a.id = t.account_id
+                WHERE a.user_id = :user AND t.movement < :start
+                GROUP BY t.account_id
+                SQL,
+            [
+                'credit' => OperationEnum::CREDIT->value,
+                'user' => $user->getId(),
+                'start' => $firstMonth->format('Y-m-d'),
+            ],
+        )->fetchAllAssociative();
+
+        $monthlyRows = $connection->executeQuery(
+            <<<SQL
+                SELECT t.account_id AS account_id,
+                       TO_CHAR(t.movement, 'YYYY-MM') AS month_key,
+                       $signedTotal AS net
+                FROM app_transaction t
+                INNER JOIN app_account a ON a.id = t.account_id
+                WHERE a.user_id = :user AND t.movement >= :start AND t.movement <= :end
+                GROUP BY t.account_id, TO_CHAR(t.movement, 'YYYY-MM')
+                SQL,
+            [
+                'credit' => OperationEnum::CREDIT->value,
+                'user' => $user->getId(),
+                'start' => $firstMonth->format('Y-m-d'),
+                'end' => $lastDay->format('Y-m-d'),
+            ],
+        )->fetchAllAssociative();
+
+        $opening = [];
+        foreach ($openingRows as $row) {
+            $opening[(int) $row['account_id']] = (float) $row['balance'];
+        }
+
+        $nets = [];
+        foreach ($monthlyRows as $row) {
+            $nets[(int) $row['account_id']][$row['month_key']] = (float) $row['net'];
+        }
+
+        $balances = [];
+        $accountIds = array_unique([...array_keys($opening), ...array_keys($nets)]);
+        foreach ($accountIds as $accountId) {
+            $running = $opening[$accountId] ?? 0.0;
+            $values = [];
+            foreach ($monthKeys as $monthKey) {
+                $running += $nets[$accountId][$monthKey] ?? 0.0;
+                $values[] = round($running, 2);
+            }
+            $balances[$accountId] = $values;
+        }
+
+        return ['months' => $monthKeys, 'balances' => $balances];
     }
 
     public function countTransactions(Account $account): int

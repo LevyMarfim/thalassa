@@ -43,6 +43,7 @@ services:
 ###> symfony/mailer ###
   mailer:
     image: axllent/mailpit
+    restart: unless-stopped
     ports:
       - "1025"
       - "8025"

@@ -1,0 +1,62 @@
+{# templates/components/_monthly_balance_chart.html.twig
+   One currency's month-end balances as an interactive Chart.js line chart.
+   Expects: chart — the array produced by App\Chart\MonthlyBalanceChartBuilder.
+   The server sends the whole history; assets/controllers/balance_chart_controller.js
+   slices it to the selected range and owns every other interaction (hover
+   tooltip + crosshair, legend toggles). #}
+{% set available_months = chart.labels|length %}
+{# One year is the initial view; a shorter history shows all of itself. #}
+{% set default_is_all = available_months < 12 %}
+<figure class="chart-panel"
+        data-controller="balance-chart"
+        data-balance-chart-data-value="{{ chart|json_encode|e('html_attr') }}">
+    <figcaption>
+        <span>{{ chart.title }}</span>
+        <span class="chart-range" role="group" aria-label="Time range">
+            {% for range in [
+                {months: 3, label: '3M'},
+                {months: 6, label: '6M'},
+                {months: 12, label: '1Y'},
+                {months: 24, label: '2Y'},
+                {months: 36, label: '3Y'},
+                {months: 60, label: '5Y'},
+            ] %}
+                {# Only offer a window the ledger actually reaches back to. #}
+                {% if available_months >= range.months %}
+                    <button type="button"
+                            class="chart-range__button"
+                            data-action="balance-chart#showRange"
+                            data-balance-chart-target="rangeButton"
+                            data-balance-chart-range-param="{{ range.months }}"
+                            aria-pressed="{{ not default_is_all and range.months == 12 ? 'true' : 'false' }}">{{ range.label }}</button>
+                {% endif %}
+            {% endfor %}
+            <button type="button"
+                    class="chart-range__button"
+                    data-action="balance-chart#showRange"
+                    data-balance-chart-target="rangeButton"
+                    data-balance-chart-range-param="0"
+                    aria-pressed="{{ default_is_all ? 'true' : 'false' }}">All</button>
+        </span>
+    </figcaption>
+
+    <div class="chart-canvas-wrap">
+        <canvas data-balance-chart-target="canvas"
+                role="img"
+                aria-label="Month-end balance of {{ chart.title }} accounts"></canvas>
+    </div>
+
+    <p class="chart-summary" data-balance-chart-target="summary" aria-live="polite">
+        {% if default_is_all %}
+            All time ({{ available_months }} {{ available_months == 1 ? 'month' : 'months' }})
+        {% else %}
+            Last 12 months
+        {% endif %}
+        · {{ chart.datasets|length }} {{ chart.datasets|length == 1 ? 'account' : 'accounts' }} ·
+        click a legend item to hide a series
+    </p>
+
+    <noscript>
+        <p class="chart-noscript">Enable JavaScript to see the interactive chart.</p>
+    </noscript>
+</figure>

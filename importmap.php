@@ -29,4 +29,7 @@ return [
     '@hotwired/turbo' => ['version' => '8.0.23'],
     'flatpickr' => ['version' => '4.6.13'],
     'flatpickr/dist/flatpickr.min.css' => ['version' => '4.6.13', 'type' => 'css'],
+    'chart.js' => ['version' => '4.6.1'],
+    '@kurkle/color' => ['version' => '0.3.4'],
+    'chart.js/auto' => ['version' => '4.6.1'],
 ];

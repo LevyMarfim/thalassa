@@ -10,8 +10,10 @@ use App\Entity\Ticker;
 use App\Entity\User;
 use App\Enum\OperationEnum;
 use App\Repository\AccountRepository;
+use App\Repository\OperationTypeRepository;
 use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\DateType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
@@ -61,6 +63,11 @@ final class TransactionFilterType extends AbstractType
                 'placeholder' => 'All types',
                 'required' => false,
                 'attr' => ['class' => 'form-input'],
+                // Match the create form: insertion order is not a useful order.
+                'query_builder' => static fn (OperationTypeRepository $repository) => $repository
+                    ->createQueryBuilder('o')
+                    ->orderBy('LOWER(o.type)', 'ASC')
+                    ->addOrderBy('o.type', 'ASC'),
             ])
             ->add('ticker', EntityType::class, [
                 'class' => Ticker::class,
@@ -116,6 +123,16 @@ final class TransactionFilterType extends AbstractType
                     'placeholder' => 'e.g. PETR4',
                     'autocomplete' => 'off',
                 ],
+            ])
+            ->add('sort', ChoiceType::class, [
+                'label' => 'Sort by',
+                'choices' => [
+                    'Newest first' => TransactionFilter::SORT_MOVEMENT_DESC,
+                    'Oldest first' => TransactionFilter::SORT_MOVEMENT_ASC,
+                    'Total (high to low)' => TransactionFilter::SORT_TOTAL_DESC,
+                    'Total (low to high)' => TransactionFilter::SORT_TOTAL_ASC,
+                ],
+                'attr' => ['class' => 'form-input'],
             ]);
     }
 

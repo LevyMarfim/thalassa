@@ -7,6 +7,7 @@ use App\Entity\Account;
 use App\Enum\CurrencyEnum;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\ColorType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -23,6 +24,7 @@ final class AccountFormType extends AbstractType
         $builder
             ->add('name', TextType::class, [
                 'label' => 'Account name',
+                'help' => 'Shown in lists and charts. Names must be unique among your accounts.',
                 'attr' => [
                     'class' => 'form-input',
                     'placeholder' => 'e.g. Nubank, XP Investimentos',
@@ -34,7 +36,14 @@ final class AccountFormType extends AbstractType
                 'class' => CurrencyEnum::class,
                 'label' => 'Currency',
                 'choice_label' => static fn (CurrencyEnum $case): string => $case->labels(),
+                'help' => 'Determines how balances are displayed. Changing it does not convert existing amounts.',
                 'attr' => ['class' => 'form-input'],
+            ])
+            ->add('color', ColorType::class, [
+                'label' => 'Chart color',
+                'html5' => true,
+                'help' => 'This account’s line colour on the dashboard chart.',
+                'attr' => ['class' => 'form-input account-color-input'],
             ])
             ->add('active', ChoiceType::class, [
                 'label' => 'Status',
@@ -46,6 +55,7 @@ final class AccountFormType extends AbstractType
                 // nothing, which the data mapper treats as "leave unchanged"
                 // rather than "set false" — a classic way to make a disable
                 // control silently stop working.
+                'help' => 'Inactive accounts keep their full history and remain available when recording transactions.',
                 'attr' => ['class' => 'form-input'],
             ]);
     }

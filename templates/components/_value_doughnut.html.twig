@@ -1,0 +1,21 @@
+{# Shared doughnut shell for the money-value breakdowns. Each currency gets its
+   own panel and symbol so BRL and USD are never added together. #}
+<figure class="chart-panel chart-panel--compact"
+        data-controller="transaction-chart"
+        data-transaction-chart-kind-value="{{ kind }}"
+        data-transaction-chart-data-value="{{ chart|json_encode|e('html_attr') }}">
+    <figcaption>
+        <span>{{ caption }} · {{ chart.title }}</span>
+        <span class="chart-badge">{{ chart.period }}</span>
+    </figcaption>
+
+    <div class="chart-canvas-wrap chart-canvas-wrap--compact">
+        <canvas data-transaction-chart-target="canvas"
+                role="img"
+                aria-label="{{ caption }} by money value for {{ chart.title }} accounts"></canvas>
+    </div>
+
+    <noscript>
+        <p class="chart-noscript">Enable JavaScript to see the chart.</p>
+    </noscript>
+</figure>

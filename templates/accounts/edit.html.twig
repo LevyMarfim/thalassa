@@ -5,14 +5,37 @@
 {% block title %}Edit account · FinFlow{% endblock %}
 
 {% block dashboard_content %}
-        <header class="dash-header">
-            <h1>Edit account</h1>
-            <p>Update “{{ account.name }}”.</p>
+        <header class="dash-header dash-header--split">
+            <div>
+                <h1>Edit account</h1>
+                <p>Update “{{ account.name }}”.</p>
+            </div>
+            <a class="btn btn--ghost" href="{{ path('app_accounts') }}">← All accounts</a>
         </header>
 
         <div class="dash-grid">
             <section class="card" aria-labelledby="edit-heading">
-                <h2 id="edit-heading">Account</h2>
+                <h2 id="edit-heading">Account details</h2>
+
+                {# A quick reality check before renaming or changing the
+                   currency: the balance shown here is the same signed sum
+                   used on the accounts list. #}
+                <div class="account-edit__meta">
+                    <div class="account-edit__meta-item">
+                        <span class="account-edit__label">Current balance</span>
+                        <strong class="account-balance {{ balance < 0 ? 'account-balance--negative' }}">
+                            {{ account.currency.symbol }} {{ balance|number_format(2, ',', '.') }}
+                        </strong>
+                    </div>
+                    <div class="account-edit__meta-item">
+                        <span class="account-edit__label">Currency</span>
+                        <strong>{{ account.currency.value }}</strong>
+                    </div>
+                    <div class="account-edit__meta-item">
+                        <span class="account-edit__label">Status</span>
+                        <strong>{{ account.active ? 'Active' : 'Inactive' }}</strong>
+                    </div>
+                </div>
 
                 {{ form_start(form, {attr: {class: 'settings-form', novalidate: 'novalidate'}}) }}
                     {# Root-level errors (CSRF, UniqueEntity) attach to the form
@@ -21,16 +44,25 @@
                     <div class="form-field">
                         {{ form_label(form.name, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.name) }}
+                        {{ form_help(form.name) }}
                         {{ form_errors(form.name) }}
                     </div>
                     <div class="form-field">
                         {{ form_label(form.currency, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.currency) }}
+                        {{ form_help(form.currency) }}
                         {{ form_errors(form.currency) }}
+                    </div>
+                    <div class="form-field">
+                        {{ form_label(form.color, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(form.color) }}
+                        {{ form_help(form.color) }}
+                        {{ form_errors(form.color) }}
                     </div>
                     <div class="form-field">
                         {{ form_label(form.active, null, {label_attr: {class: 'form-label'}}) }}
                         {{ form_widget(form.active) }}
+                        {{ form_help(form.active) }}
                         {{ form_errors(form.active) }}
                     </div>
 
@@ -41,7 +73,7 @@
                 {{ form_end(form) }}
 
                 <p class="card__back">
-                    <a href="{{ path('app_accounts') }}">← Back to accounts</a>
+                    <a href="{{ path('app_transactions', {account: account.id}) }}">View transactions →</a>
                 </p>
             </section>
         </div>

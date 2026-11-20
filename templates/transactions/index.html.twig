@@ -5,24 +5,91 @@
 {% block title %}Transactions · FinFlow{% endblock %}
 
 {% block dashboard_content %}
+    <div class="tx-page">
         <header class="dash-header dash-header--split">
             <div>
                 <h1>Transactions</h1>
                 <p>Your movements in BRL and USD.</p>
             </div>
+            {% if filteredAccount %}
+                <p class="tx-filter">
+                    Showing only <strong>{{ filteredAccount.name }}</strong>
+                    <a href="{{ path('app_transactions') }}">Show all</a>
+                </p>
+            {% endif %}
             <a class="btn btn--primary" href="{{ path('app_transactions_new', filteredAccount ? {account: filteredAccount.id} : {}) }}">Add transaction</a>
         </header>
 
-        {% if filteredAccount %}
-            <p class="tx-filter">
-                Showing only <strong>{{ filteredAccount.name }}</strong>
-                <a href="{{ path('app_transactions') }}">Show all</a>
-            </p>
-        {% endif %}
+        <div class="tx-layout">
+            {% if currencySummaries is not empty %}
+                <section class="card card--compact tx-span-12" aria-labelledby="tx-summary-heading">
+                    <h2 id="tx-summary-heading" class="sr-only">Movement overview</h2>
+                    <div class="tx-summary__grid">
+                        {% for summary in currencySummaries %}
+                            <div class="tx-summary__item">
+                                <span class="tx-summary__label">{{ summary.currency.value }} net movement</span>
+                                <span class="tx-summary__value {{ summary.total < 0 ? 'tx-summary__value--negative' : '' }}">
+                                    {{ summary.symbol }} {{ summary.total|number_format(2, ',', '.') }}
+                                </span>
+                                <span class="tx-summary__meta">{{ summary.count }} {{ summary.count == 1 ? 'transaction' : 'transactions' }}</span>
+                            </div>
+                        {% endfor %}
+                        <div class="tx-summary__item tx-summary__item--muted">
+                            <span class="tx-summary__label">In view</span>
+                            <span class="tx-summary__value">{{ transactionCount }}</span>
+                            <span class="tx-summary__meta">{{ transactionCount == 1 ? 'transaction' : 'transactions' }} in this view</span>
+                        </div>
+                    </div>
+                </section>
+            {% endif %}
 
-        <div class="dash-grid">
-            <section class="card card--wide" aria-labelledby="filters-heading">
-                <h2 id="filters-heading">Filters</h2>
+            <section class="card card--compact tx-span-8" aria-labelledby="tx-monthly-heading">
+                <h2 id="tx-monthly-heading" class="sr-only">Monthly movement</h2>
+                {% if monthlyCharts is empty %}
+                    <div class="empty-state">
+                        {% if filter.isActive %}
+                            <p>No monthly activity matches these filters.</p>
+                            <small>Adjust them or <a href="{{ path('app_transactions') }}">clear the filters</a>.</small>
+                        {% else %}
+                            <p>No monthly activity yet.</p>
+                            <small>It appears here as you record transactions.</small>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="chart-panels chart-panels--compact">
+                        {% for chart in monthlyCharts %}
+                            {{ include('components/_transaction_monthly_chart.html.twig', {chart: chart}) }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </section>
+
+            <section class="card card--compact tx-span-4" aria-labelledby="tx-types-heading">
+                <h2 id="tx-types-heading" class="sr-only">Operation type mix</h2>
+                {% if typeCharts is empty %}
+                    <div class="empty-state">
+                        {% if filter.isActive %}
+                            <p>No operation types match these filters.</p>
+                            <small>Adjust them or <a href="{{ path('app_transactions') }}">clear the filters</a>.</small>
+                        {% else %}
+                            <p>No operation types yet.</p>
+                            <small>They appear here as you record transactions.</small>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="chart-panels chart-panels--compact">
+                        {{ include('components/_transaction_type_chart.html.twig', {charts: typeCharts}) }}
+                    </div>
+                {% endif %}
+            </section>
+
+            <section class="card card--compact tx-span-12 tx-filters" aria-labelledby="filters-heading">
+                <div class="card__heading-row">
+                    <h2 id="filters-heading">Filters</h2>
+                    {% if filter.isActive %}
+                        <a class="card__count" href="{{ path('app_transactions') }}">Clear filters</a>
+                    {% endif %}
+                </div>
 
                 {{ form_start(filterForm, {attr: {class: 'tx-form'}}) }}
                     <div class="form-field">
@@ -60,6 +127,11 @@
                         {{ form_widget(filterForm.description, {attr: {class: 'form-input'}}) }}
                         {{ form_errors(filterForm.description) }}
                     </div>
+                    <div class="form-field">
+                        {{ form_label(filterForm.sort, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(filterForm.sort) }}
+                        {{ form_errors(filterForm.sort) }}
+                    </div>
 
                     <div class="tx-form__actions">
                         <button type="submit" class="btn btn--primary">Apply filters</button>
@@ -68,12 +140,15 @@
                 {{ form_end(filterForm) }}
             </section>
 
-            <section class="card card--wide" aria-labelledby="list-heading">
-                <h2 id="list-heading">All transactions</h2>
+            <section class="card card--compact tx-span-12 tx-list" aria-labelledby="list-heading">
+                <div class="card__heading-row">
+                    <h2 id="list-heading">All transactions</h2>
+                    <span class="card__count">Showing {{ transactions|length }} of {{ transactionCount }}</span>
+                </div>
 
                 {% if transactions is empty %}
                     <div class="empty-state">
-                        {% if filterForm.vars.data.isActive %}
+                        {% if filter.isActive %}
                             <p>No transactions match these filters.</p>
                             <small>Adjust them or <a href="{{ path('app_transactions') }}">clear the filters</a>.</small>
                         {% else %}
@@ -84,6 +159,7 @@
                 {% else %}
                     <div class="tx-table-wrap">
                         <table class="tx-table">
+                            <caption class="sr-only">Transactions, newest first unless another sort is selected</caption>
                             <thead>
                                 <tr>
                                     <th scope="col">Account</th>
@@ -104,13 +180,17 @@
                             <tbody>
                                 {% for transaction in transactions %}
                                     <tr>
-                                        <td>{{ transaction.account.name }}</td>
+                                        <td>
+                                            <a class="tx-table__account" href="{{ path('app_transactions', {account: transaction.account.id}) }}" title="Show only {{ transaction.account.name }}">
+                                                {{ transaction.account.name }}
+                                            </a>
+                                        </td>
                                         {# DATE columns are calendar dates: date_only keeps the stored
                                            day. A display timezone here would render the previous one.
                                            Listings read dd/mmm/yyyy (07/set/2023); the form keeps the
                                            numeric wire value the server parses back. #}
-                                        <td>{{ transaction.movement|date_only_short }}</td>
-                                        <td>{{ transaction.liquidation|date_only_short }}</td>
+                                        <td class="tx-table__date">{{ transaction.movement|date_only_short }}</td>
+                                        <td class="tx-table__date">{{ transaction.liquidation|date_only_short }}</td>
                                         <td>
                                             <span class="tx-badge tx-badge--{{ transaction.operation.value|lower }}">
                                                 {{ transaction.operation.labels }}
@@ -122,13 +202,13 @@
                                         <td class="tx-table__amount">{{ transaction.unitPrice is not null ? transaction.unitPrice|number_format(2, ',', '.') : '—' }}</td>
                                         <td>{% if transaction.market %}<span class="tx-badge tx-badge--market">{{ transaction.market.labels }}</span>{% else %}—{% endif %}</td>
                                         <td>{{ transaction.invoice ?? '—' }}</td>
-                                        <td class="tx-table__desc">{{ transaction.description }}</td>
+                                        <td class="tx-table__desc" title="{{ transaction.description }}">{{ transaction.description }}</td>
                                         <td class="tx-table__amount tx-table__amount--{{ transaction.operation.value|lower }}">
                                             {{ transaction.signedTotalPrice|number_format(2, ',', '.') }}
                                         </td>
                                         <td class="tx-table__actions">
-                                            <a class="type-list__edit" href="{{ path('app_transactions_edit', {id: transaction.id}) }}">Edit</a>
-                                            <form class="type-list__delete-form" method="post" action="{{ path('app_transactions_delete', {id: transaction.id}) }}" onsubmit="return confirm('Delete this transaction?');">
+                                            <a class="type-list__edit" href="{{ path('app_transactions_edit', {id: transaction.id}|merge(listQuery)) }}">Edit</a>
+                                            <form class="type-list__delete-form" method="post" action="{{ path('app_transactions_delete', {id: transaction.id}|merge(listQuery)) }}" onsubmit="return confirm('Delete this transaction?');">
                                                 <input type="hidden" name="_token" value="{{ csrf_token('delete-transaction') }}">
                                                 <button type="submit" class="type-list__delete">Delete</button>
                                             </form>
@@ -141,4 +221,5 @@
                 {% endif %}
             </section>
         </div>
+    </div>
 {% endblock %}

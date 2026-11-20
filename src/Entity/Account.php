@@ -26,6 +26,26 @@ use Symfony\Component\Validator\Constraints as Assert;
 )]
 class Account
 {
+    /**
+     * Stable chart palette. New accounts are assigned the first colour not yet
+     * used by the user; the migration backfills existing rows in the same
+     * order so chart lines stay distinguishable without any manual editing.
+     *
+     * @var list<string>
+     */
+    public const array CHART_COLORS = [
+        '#10b981',
+        '#3b82f6',
+        '#f59e0b',
+        '#8b5cf6',
+        '#ef4444',
+        '#06b6d4',
+        '#ec4899',
+        '#84cc16',
+    ];
+
+    public const string DEFAULT_COLOR = '#10b981';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -54,6 +74,19 @@ class Account
 
     #[ORM\Column]
     private ?bool $active = null;
+
+    /**
+     * The account's line colour on the dashboard chart. Kept as a plain
+     * #RRGGBB string: CSS and Chart.js both consume it directly, and the form
+     * uses a native colour picker so no palette UI is needed.
+     */
+    #[ORM\Column(length: 7, options: ['default' => self::DEFAULT_COLOR])]
+    #[Assert\NotBlank(message: 'Please choose a chart color.')]
+    #[Assert\Regex(
+        pattern: '/^#[0-9a-fA-F]{6}$/',
+        message: 'Choose a color as a #RRGGBB value.',
+    )]
+    private ?string $color = self::DEFAULT_COLOR;
 
     /**
      * @var Collection<int, Transaction>
@@ -128,6 +161,22 @@ class Account
     public function setActive(bool $active): static
     {
         $this->active = $active;
+
+        return $this;
+    }
+
+    public function getColor(): ?string
+    {
+        return $this->color;
+    }
+
+    /**
+     * Nullable so a blank picker survives the data mapper and is rejected by
+     * NotBlank with a 422, instead of throwing a TypeError -> 500.
+     */
+    public function setColor(?string $color): static
+    {
+        $this->color = null === $color ? null : strtolower(trim($color));
 
         return $this;
     }
