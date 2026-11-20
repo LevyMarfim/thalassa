@@ -320,8 +320,8 @@ final class TransactionControllerTest extends WebTestCase
 
         self::assertSelectorTextContains('.tx-summary__item--muted', '3 transactions in this view');
 
-        // Compact layout + charts: one monthly panel per currency, one type
-        // doughnut, all driven by the same Stimulus controller.
+        // Compact layout + charts: one monthly panel and one value doughnut per
+        // currency, all driven by the same Stimulus controller.
         self::assertCount(1, $crawler->filter('.tx-layout'));
         self::assertCount(1, $crawler->filter('.tx-span-8'));
         self::assertCount(1, $crawler->filter('.tx-span-4'));
@@ -331,10 +331,10 @@ final class TransactionControllerTest extends WebTestCase
         self::assertStringContainsString('USD', $monthly->last()->attr('data-transaction-chart-data-value'));
 
         $types = $crawler->filter('[data-transaction-chart-kind-value="types"]');
-        self::assertCount(1, $types);
+        self::assertCount(2, $types);
         self::assertStringContainsString(
             $data['operationType']->getType(),
-            $types->attr('data-transaction-chart-data-value')
+            $types->first()->attr('data-transaction-chart-data-value')
         );
     }
 
@@ -396,11 +396,12 @@ final class TransactionControllerTest extends WebTestCase
         $this->createTransaction($brl, 100.00, null, OperationEnum::CREDIT, '2026-10-10');
         $this->createAccountWithTransaction($usd, 50.00, CurrencyEnum::USD, OperationEnum::CREDIT);
 
-        // Unfiltered: both currencies are plotted and both rows feed the type
-        // doughnut.
+        // Unfiltered: both currencies are plotted, each with its own value
+        // doughnut so BRL and USD are never added together.
         $unfiltered = $client->request('GET', '/transactions');
         self::assertCount(2, $unfiltered->filter('[data-transaction-chart-kind-value="monthly"]'));
-        self::assertSame(2, array_sum($this->chartData($unfiltered, 'types')['counts']));
+        self::assertSame(100.0, (float) array_sum($this->chartData($unfiltered, 'types', 'BRL')['values']));
+        self::assertSame(50.0, (float) array_sum($this->chartData($unfiltered, 'types', 'USD')['values']));
 
         // The legacy ?account= link must narrow the charts too, not just the
         // table above them.
@@ -412,8 +413,8 @@ final class TransactionControllerTest extends WebTestCase
         self::assertSame(100.0, (float) array_sum($monthly['credits']));
         self::assertSame(0.0, (float) array_sum($monthly['debits']));
 
-        $types = $this->chartData($filtered, 'types');
-        self::assertSame(1, array_sum($types['counts']));
+        $types = $this->chartData($filtered, 'types', 'BRL');
+        self::assertSame(100.0, (float) array_sum($types['values']));
         self::assertSame('Filtered', $types['period']);
     }
 
@@ -1612,9 +1613,9 @@ final class TransactionControllerTest extends WebTestCase
     }
 
     /**
-     * Reads the JSON handed to a chart's Stimulus controller. The monthly kind
-     * can be narrowed to one currency so a filter that removes a panel cannot
-     * be satisfied by the other panel's data.
+     * Reads the JSON handed to a chart's Stimulus controller. A currency can be
+     * given for any kind with per-currency panels (monthly and both doughnuts),
+     * so a filter that removes a panel cannot be satisfied by another one.
      *
      * @return array<string, mixed>
      */

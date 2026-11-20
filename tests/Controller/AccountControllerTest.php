@@ -406,10 +406,12 @@ final class AccountControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('.account-balance', '-400,00');
 
-        // Same repository call, so the dashboard must agree.
+        // Same repository call, so the dashboard must agree. Its whole-ledger
+        // summary strip carries the net movement now that the accounts card
+        // has been removed from the home page.
         $client->request('GET', '/');
         self::assertResponseIsSuccessful();
-        self::assertSelectorTextContains('.account-balance', '-400,00');
+        self::assertSelectorTextContains('#home-summary-heading ~ .tx-summary__grid .tx-summary__item', '-400,00');
     }
 
     /**

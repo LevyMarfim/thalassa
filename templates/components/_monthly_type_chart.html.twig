@@ -1,0 +1,35 @@
+{# One currency's monthly money totals per operation type. The buttons switch
+   the visible series client-side; the server sends the whole filtered history. #}
+<figure class="chart-panel chart-panel--compact"
+        data-controller="monthly-type-chart"
+        data-monthly-type-chart-data-value="{{ chart|json_encode|e('html_attr') }}">
+    <figcaption>
+        <span>Monthly movement by type · {{ chart.title }}</span>
+        <span class="chart-badge">{{ chart.period }}</span>
+    </figcaption>
+
+    <div class="chart-type-picker" role="group" aria-label="Operation type">
+        {% for type in chart.types %}
+            <button type="button"
+                    class="chart-range__button"
+                    data-action="monthly-type-chart#selectType"
+                    data-monthly-type-chart-target="typeButton"
+                    data-monthly-type-chart-type-param="{{ type.type }}"
+                    aria-pressed="{{ loop.first ? 'true' : 'false' }}">{{ type.type }}</button>
+        {% endfor %}
+    </div>
+
+    <div class="chart-canvas-wrap chart-canvas-wrap--compact">
+        <canvas data-monthly-type-chart-target="canvas"
+                role="img"
+                aria-label="Monthly totals by operation type for {{ chart.title }} accounts"></canvas>
+    </div>
+
+    <p class="chart-summary" data-monthly-type-chart-target="summary" aria-live="polite">
+        {{ chart.types[0].type }} · {{ chart.symbol }} {{ chart.types[0].total|number_format(2, ',', '.') }}
+    </p>
+
+    <noscript>
+        <p class="chart-noscript">Enable JavaScript to see the chart.</p>
+    </noscript>
+</figure>

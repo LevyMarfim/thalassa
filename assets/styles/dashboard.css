@@ -414,6 +414,23 @@ span.dash-nav__item { cursor: default; }
     transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
+/* Operation-type picker for the monthly-by-type chart. Reuses the range
+   button styling so both selectors feel like the same control. */
+.chart-type-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: -2px 0 8px;
+    padding: 2px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.14);
+}
+
+.chart-type-picker .chart-range__button {
+    padding: 3px 7px;
+    font-size: 0.65rem;
+}
+
 .chart-range__button:hover {
     color: var(--color-text);
 }
@@ -1285,29 +1302,38 @@ a.type-list__name:hover {
     color: var(--color-text);
 }
 
-/* -------------------- Compact transactions layout -------------------- */
-.tx-page .dash-header { margin-bottom: 18px; }
+/* -------------------- Compact dashboard layouts -------------------- */
+.tx-page .dash-header,
+.home-page .dash-header { margin-bottom: 18px; }
 
 /* Twelve columns give the charts a 2:1 split and let the filter form pack its
    eight controls into one dense row on a wide screen. Everything collapses to
    a single column before the table gets cramped. */
-.tx-layout {
+.tx-layout,
+.home-layout {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: 14px;
     align-items: start;
 }
 
-.tx-span-12 { grid-column: span 12; }
-.tx-span-8 { grid-column: span 8; }
-.tx-span-4 { grid-column: span 4; }
+.tx-span-12,
+.home-span-12 { grid-column: span 12; }
+.tx-span-8,
+.home-span-8 { grid-column: span 8; }
+.tx-span-6,
+.home-span-6 { grid-column: span 6; }
+.tx-span-4,
+.home-span-4 { grid-column: span 4; }
 
 .card--compact { padding: 16px 18px; }
 .card--compact h2 { margin-bottom: 12px; }
 .tx-layout .card__heading-row h2,
 .tx-layout .card__count { margin-bottom: 10px; }
-.tx-layout .tx-summary__item { padding: 12px 14px; }
-.tx-layout .empty-state { padding: 4px 0; }
+.tx-layout .tx-summary__item,
+.home-layout .tx-summary__item { padding: 12px 14px; }
+.tx-layout .empty-state,
+.home-layout .empty-state { padding: 4px 0; }
 
 .chart-panels--compact {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1363,9 +1389,14 @@ a.type-list__name:hover {
     .dash { padding-left: 0; }
     .dash-sidebar { display: none; }
     .dash-grid { grid-template-columns: 1fr; }
-    .tx-layout { grid-template-columns: 1fr; }
+    .tx-layout,
+    .home-layout { grid-template-columns: 1fr; }
     .tx-span-8,
-    .tx-span-4 { grid-column: 1 / -1; }
+    .tx-span-6,
+    .tx-span-4,
+    .home-span-8,
+    .home-span-6,
+    .home-span-4 { grid-column: 1 / -1; }
 }
 
 @media (max-width: 640px) {

@@ -4,73 +4,39 @@
 {% block title %}Dashboard · FinFlow{% endblock %}
 
 {% block dashboard_content %}
-        <header class="dash-header">
-            <h1>Welcome back, {{ app.user.username }}</h1>
-            <p>Here is your money overview in BRL and USD.</p>
+    <div class="home-page">
+        <header class="dash-header dash-header--split">
+            <div>
+                <h1>Welcome back, {{ app.user.username }}</h1>
+                <p>Here is your money overview in BRL and USD.</p>
+            </div>
+            <a class="btn btn--ghost" href="{{ path('app_transactions') }}">View transactions →</a>
         </header>
 
-        <div class="dash-grid">
-            <section class="card" aria-labelledby="profile-heading">
-                <h2 id="profile-heading">Profile</h2>
-                <dl>
-                    <div class="profile-row">
-                        <dt>Username</dt>
-                        <dd>{{ app.user.username }}</dd>
-                    </div>
-                    <div class="profile-row">
-                        <dt>Email</dt>
-                        <dd>{{ app.user.email }}</dd>
-                    </div>
-                    <div class="profile-row">
-                        <dt>Member since</dt>
-                        <dd>{{ app.user.createdAt|date('d/m/Y', 'America/Sao_Paulo') }}</dd>
-                    </div>
-                    <div class="profile-row">
-                        <dt>Last access</dt>
-                        <dd>{{ app.user.lastAccessAt ? app.user.lastAccessAt|date('d/m/Y H:i', 'America/Sao_Paulo') : '—' }}</dd>
-                    </div>
-                    <div class="profile-row">
-                        <dt>Status</dt>
-                        <dd><span class="status-badge">{{ app.user.active ? 'Active' : 'Inactive' }}</span></dd>
-                    </div>
-                </dl>
-            </section>
-
-            <section class="card" aria-labelledby="accounts-heading">
-                <h2 id="accounts-heading">Accounts</h2>
-                {% if accounts is empty %}
-                    <div class="empty-state">
-                        <p>No accounts yet.</p>
-                        <small>Your BRL and USD accounts will appear here.</small>
-                    </div>
-                {% else %}
-                    <ul class="type-list account-list">
-                        {% for account in accounts %}
-                            <li class="type-list__row">
-                                {# Same shortcut as the Accounts page: the name opens
-                                   this account's transactions, already filtered. #}
-                                <a class="type-list__name type-list__link" href="{{ path('app_transactions', {account: account.id}) }}" title="View transactions for {{ account.name }}">
-                                    {{ account.name }}
-                                    {% if not account.active %}
-                                        <span class="account-badge account-badge--inactive">Inactive</span>
-                                    {% endif %}
-                                </a>
-                                <span class="account-currency">{{ account.currency.value }}</span>
-                                {% set balance = balances[account.id]|default(0) %}
-                                <span class="account-balance {{ balance < 0 ? 'account-balance--negative' }}">
-                                    {{ account.currency.symbol }}
-                                    {{ balance|number_format(2, ',', '.') }}
+        <div class="home-layout">
+            {% if currencySummaries is not empty %}
+                <section class="card card--compact home-span-12" aria-labelledby="home-summary-heading">
+                    <h2 id="home-summary-heading" class="sr-only">Movement overview</h2>
+                    <div class="tx-summary__grid">
+                        {% for summary in currencySummaries %}
+                            <div class="tx-summary__item">
+                                <span class="tx-summary__label">{{ summary.currency.value }} net movement</span>
+                                <span class="tx-summary__value {{ summary.total < 0 ? 'tx-summary__value--negative' : '' }}">
+                                    {{ summary.symbol }} {{ summary.total|number_format(2, ',', '.') }}
                                 </span>
-                            </li>
+                                <span class="tx-summary__meta">{{ summary.count }} {{ summary.count == 1 ? 'transaction' : 'transactions' }}</span>
+                            </div>
                         {% endfor %}
-                    </ul>
-                    <p class="card__back">
-                        <a href="{{ path('app_accounts') }}">Manage accounts →</a>
-                    </p>
-                {% endif %}
-            </section>
+                        <div class="tx-summary__item tx-summary__item--muted">
+                            <span class="tx-summary__label">On record</span>
+                            <span class="tx-summary__value">{{ transactionCount }}</span>
+                            <span class="tx-summary__meta">{{ transactionCount == 1 ? 'transaction' : 'transactions' }} across all accounts</span>
+                        </div>
+                    </div>
+                </section>
+            {% endif %}
 
-            <section class="card card--wide" aria-labelledby="chart-heading">
+            <section class="card card--compact home-span-12" aria-labelledby="chart-heading">
                 <h2 id="chart-heading">Account value by month</h2>
                 <p class="card__hint">Month-end balance per account. Hover the chart for exact values, toggle accounts in the legend, and switch the range.</p>
 
@@ -80,7 +46,7 @@
                         <small>Add a transaction and your month-end balances will appear here.</small>
                     </div>
                 {% else %}
-                    <div class="chart-panels">
+                    <div class="chart-panels chart-panels--compact">
                         {% for chart in charts %}
                             {{ include('components/_monthly_balance_chart.html.twig', {chart: chart}) }}
                         {% endfor %}
@@ -88,7 +54,69 @@
                 {% endif %}
             </section>
 
-            <section class="card card--wide" aria-labelledby="activity-heading">
+            <section class="card card--compact home-span-12" aria-labelledby="monthly-heading">
+                <h2 id="monthly-heading">Monthly movement</h2>
+                {% if monthlyCharts is empty %}
+                    <div class="empty-state">
+                        <p>No monthly activity yet.</p>
+                        <small>It appears here as you record transactions.</small>
+                    </div>
+                {% else %}
+                    <div class="chart-panels chart-panels--compact">
+                        {% for chart in monthlyCharts %}
+                            {{ include('components/_transaction_monthly_chart.html.twig', {chart: chart}) }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </section>
+
+            <section class="card card--compact home-span-12" aria-labelledby="monthly-types-heading">
+                <h2 id="monthly-types-heading">Monthly movement by operation type</h2>
+                <p class="card__hint">Pick an operation type to plot its monthly totals. Values are absolute money moved, not a signed balance.</p>
+
+                {% if monthlyTypeCharts is empty %}
+                    <div class="empty-state">
+                        <p>No monthly activity yet.</p>
+                        <small>Operation types appear here as you record transactions.</small>
+                    </div>
+                {% else %}
+                    <div class="chart-panels chart-panels--compact">
+                        {% for chart in monthlyTypeCharts %}
+                            {{ include('components/_monthly_type_chart.html.twig', {chart: chart}) }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </section>
+
+            <section class="card card--compact home-span-6" aria-labelledby="operations-heading">
+                <h2 id="operations-heading">Credits and debits</h2>
+                {% if operationCharts is empty %}
+                    <div class="empty-state">
+                        <p>No operations yet.</p>
+                        <small>Recorded credits and debits will appear here.</small>
+                    </div>
+                {% else %}
+                    <div class="chart-panels chart-panels--compact">
+                        {{ include('components/_operation_value_chart.html.twig', {charts: operationCharts}) }}
+                    </div>
+                {% endif %}
+            </section>
+
+            <section class="card card--compact home-span-6" aria-labelledby="types-heading">
+                <h2 id="types-heading">Operation types</h2>
+                {% if typeCharts is empty %}
+                    <div class="empty-state">
+                        <p>No operation types yet.</p>
+                        <small>They appear here as you record transactions.</small>
+                    </div>
+                {% else %}
+                    <div class="chart-panels chart-panels--compact">
+                        {{ include('components/_transaction_type_chart.html.twig', {charts: typeCharts}) }}
+                    </div>
+                {% endif %}
+            </section>
+
+            <section class="card card--compact home-span-12" aria-labelledby="activity-heading">
                 <h2 id="activity-heading">Recent activity</h2>
 
                 {% if recentTransactions is empty %}
@@ -125,4 +153,5 @@
                 {% endif %}
             </section>
         </div>
+    </div>
 {% endblock %}

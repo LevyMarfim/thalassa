@@ -1,22 +1,5 @@
-{# Transaction counts by operation type. Counts are currency-independent, so a
-   single doughnut works across BRL and USD without pretending they share an
-   exchange rate. #}
-<figure class="chart-panel chart-panel--compact"
-        data-controller="transaction-chart"
-        data-transaction-chart-kind-value="types"
-        data-transaction-chart-data-value="{{ chart|json_encode|e('html_attr') }}">
-    <figcaption>
-        <span>By operation type</span>
-        <span class="chart-badge">{{ chart.period }}</span>
-    </figcaption>
-
-    <div class="chart-canvas-wrap chart-canvas-wrap--compact">
-        <canvas data-transaction-chart-target="canvas"
-                role="img"
-                aria-label="Transaction counts by operation type"></canvas>
-    </div>
-
-    <noscript>
-        <p class="chart-noscript">Enable JavaScript to see the chart.</p>
-    </noscript>
-</figure>
+{# Absolute money moved by operation type, one doughnut per currency. Values
+   (not transaction counts) are currency-dependent, hence the separate panels. #}
+{% for chart in charts %}
+    {{ include('components/_value_doughnut.html.twig', {chart: chart, kind: 'types', caption: 'By operation type'}) }}
+{% endfor %}

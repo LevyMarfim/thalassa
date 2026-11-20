@@ -66,7 +66,7 @@
 
             <section class="card card--compact tx-span-4" aria-labelledby="tx-types-heading">
                 <h2 id="tx-types-heading" class="sr-only">Operation type mix</h2>
-                {% if typeChart is null %}
+                {% if typeCharts is empty %}
                     <div class="empty-state">
                         {% if filter.isActive %}
                             <p>No operation types match these filters.</p>
@@ -77,7 +77,9 @@
                         {% endif %}
                     </div>
                 {% else %}
-                    {{ include('components/_transaction_type_chart.html.twig', {chart: typeChart}) }}
+                    <div class="chart-panels chart-panels--compact">
+                        {{ include('components/_transaction_type_chart.html.twig', {charts: typeCharts}) }}
+                    </div>
                 {% endif %}
             </section>
 

@@ -70,8 +70,8 @@ final class TransactionController extends AbstractController
             $monthlyActivity['months'],
             $monthlyActivity['rows'],
         );
-        $typeChart = $chartBuilder->buildTypeMix(
-            $transactionRepository->findOperationTypeCountsByUser($user, $filter),
+        $typeCharts = $chartBuilder->buildTypeValueMix(
+            $transactionRepository->findOperationTypeTotalsByUser($user, $filter),
             $filter->isActive(),
         );
 
@@ -84,7 +84,7 @@ final class TransactionController extends AbstractController
             'transactionCount' => $transactionRepository->countByUser($user, $filter),
             'currencySummaries' => $currencySummaries,
             'monthlyCharts' => $monthlyCharts,
-            'typeChart' => $typeChart,
+            'typeCharts' => $typeCharts,
         ]);
     }
 

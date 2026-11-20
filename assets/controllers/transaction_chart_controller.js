@@ -22,7 +22,8 @@ const RANGES = [0, 3, 6, 12, 24, 36, 60];
  *  - monthly credits/debits per currency (grouped bars). The server sends the
  *    whole filtered history; the 3M/6M/1Y/2Y/3Y/5Y/All buttons slice it here,
  *    just like the dashboard balance chart, so old movements remain reachable;
- *  - transaction counts by operation type (doughnut, 7 slices max).
+ *  - absolute money moved by operation (credits/debits) and by operation type,
+ *    one doughnut per currency; both share the payload shape below.
  *
  * There is no crosshair or server round-trip on range changes: Chart.js keeps
  * scaling/tooltips and this controller only swaps the visible arrays.
@@ -203,13 +204,14 @@ export default class extends Controller {
 
     typeConfig() {
         const data = this.dataValue;
+        const format = (value) => `${data.symbol ?? ''} ${MONEY.format(value)}`.trim();
 
         return {
             type: 'doughnut',
             data: {
                 labels: data.labels,
                 datasets: [{
-                    data: data.counts,
+                    data: data.values ?? data.counts,
                     backgroundColor: data.colors,
                     borderColor: '#ffffff',
                     borderWidth: 2,
@@ -242,7 +244,7 @@ export default class extends Controller {
                         cornerRadius: 8,
                         boxPadding: 3,
                         callbacks: {
-                            label: (item) => ` ${item.label}: ${item.parsed} ${1 === item.parsed ? 'transaction' : 'transactions'}`,
+                            label: (item) => ` ${item.label}: ${format(item.parsed)}`,
                         },
                     },
                 },

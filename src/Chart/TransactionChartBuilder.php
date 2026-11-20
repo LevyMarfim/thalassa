@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Chart;
 
 use App\Enum\CurrencyEnum;
+use App\Enum\OperationEnum;
 
 /**
  * Shapes the transactions aggregates into the small JSON payloads consumed by
@@ -107,42 +108,215 @@ final class TransactionChartBuilder
     }
 
     /**
-     * Keeps the first six types and folds the tail into "Other" so the legend
-     * stays readable in a narrow card.
+     * Absolute money moved per operation, one doughnut per currency.
      *
-     * @param list<array{type: string, count: int}> $rows
+     * @param list<array{operation: string, currency: string, total: float}> $rows
      *
-     * @return array{
-     *     labels: list<string>,
-     *     counts: list<int>,
-     *     colors: list<string>,
-     *     period: string,
-     * }|null
+     * @return list<array{currency: string, title: string, symbol: string, labels: list<string>, values: list<float>, colors: list<string>, period: string}>
      */
-    public function buildTypeMix(array $rows, bool $filtered = false): ?array
+    public function buildOperationValueMix(array $rows, bool $filtered = false): array
     {
-        if ([] === $rows) {
-            return null;
+        return $this->valueMixByCurrency(
+            $rows,
+            'operation',
+            static fn (string $value): string => OperationEnum::from($value)->labels(),
+            static fn (string $value, int $index): string => match ($value) {
+                OperationEnum::CREDIT->value => '#10b981',
+                OperationEnum::DEBIT->value => '#ef4444',
+                default => '#94a3b8',
+            },
+            $filtered,
+        );
+    }
+
+    /**
+     * Absolute money moved per operation type, one doughnut per currency.
+     *
+     * @param list<array{type: string, currency: string, total: float}> $rows
+     *
+     * @return list<array{currency: string, title: string, symbol: string, labels: list<string>, values: list<float>, colors: list<string>, period: string}>
+     */
+    public function buildTypeValueMix(array $rows, bool $filtered = false): array
+    {
+        return $this->valueMixByCurrency(
+            $rows,
+            'type',
+            static fn (string $value): string => $value,
+            static fn (string $value, int $index): string => 'Other' === $value
+                ? '#94a3b8'
+                : self::PALETTE[$index % \count(self::PALETTE)],
+            $filtered,
+        );
+    }
+
+    /**
+     * Full-history monthly totals per operation type, one panel per currency.
+     * The browser switches series with the type picker; no server round-trip.
+     *
+     * @param list<string>                                                             $monthKeys
+     * @param list<array{month: string, type: string, currency: string, total: float}> $rows
+     *
+     * @return list<array{
+     *     currency: string,
+     *     title: string,
+     *     symbol: string,
+     *     labels: list<string>,
+     *     types: list<array{type: string, values: list<float>, total: float}>,
+     *     period: string,
+     * }>
+     */
+    public function buildMonthlyType(array $monthKeys, array $rows): array
+    {
+        if ([] === $monthKeys) {
+            return [];
         }
 
-        $visible = \array_slice($rows, 0, 6);
-        $rest = \array_slice($rows, 6);
-        if ([] !== $rest) {
-            $visible[] = [
-                'type' => 'Other',
-                'count' => array_sum(array_column($rest, 'count')),
+        $labels = array_map($this->formatMonthLabel(...), $monthKeys);
+        $period = $labels[0] === $labels[array_key_last($labels)]
+            ? $labels[0]
+            : $labels[0].' – '.$labels[array_key_last($labels)];
+        $monthIndex = array_flip($monthKeys);
+        $grouped = [];
+        $totals = [];
+        foreach ($rows as $row) {
+            $currency = self::scalar($row['currency']);
+            $type = (string) $row['type'];
+            $grouped[$currency][$type][$row['month']] = ($grouped[$currency][$type][$row['month']] ?? 0) + (float) $row['total'];
+            $totals[$currency][$type] = ($totals[$currency][$type] ?? 0) + (float) $row['total'];
+        }
+
+        $charts = [];
+        foreach (CurrencyEnum::cases() as $currency) {
+            $currencyTotals = $totals[$currency->value] ?? [];
+            if ([] === $currencyTotals) {
+                continue;
+            }
+
+            arsort($currencyTotals);
+            $types = array_keys($currencyTotals);
+            $visible = \array_slice($types, 0, 8);
+            $rest = \array_slice($types, 8);
+
+            $series = [];
+            foreach ($visible as $type) {
+                $series[] = $this->monthlySeries($type, $grouped[$currency->value][$type], $monthIndex, $monthKeys);
+            }
+            if ([] !== $rest) {
+                $other = array_fill(0, \count($monthKeys), 0.0);
+                $otherTotal = 0.0;
+                foreach ($rest as $type) {
+                    $otherTotal += $currencyTotals[$type];
+                    foreach ($grouped[$currency->value][$type] as $month => $value) {
+                        if (isset($monthIndex[$month])) {
+                            $other[$monthIndex[$month]] += $value;
+                        }
+                    }
+                }
+                $series[] = [
+                    'type' => 'Other',
+                    'values' => array_map(static fn (float $value): float => round($value, 2), $other),
+                    'total' => round($otherTotal, 2),
+                ];
+            }
+
+            $charts[] = [
+                'currency' => $currency->value,
+                'title' => $currency->labels(),
+                'symbol' => $currency->symbol(),
+                'labels' => $labels,
+                'types' => $series,
+                'period' => $period,
             ];
         }
 
+        return $charts;
+    }
+
+    /**
+     * @param array<string, float> $monthlyValues
+     * @param array<string, int>   $monthIndex
+     * @param list<string>         $monthKeys
+     *
+     * @return array{type: string, values: list<float>, total: float}
+     */
+    private function monthlySeries(string $type, array $monthlyValues, array $monthIndex, array $monthKeys): array
+    {
+        $values = array_fill(0, \count($monthKeys), 0.0);
+        foreach ($monthlyValues as $month => $value) {
+            if (isset($monthIndex[$month])) {
+                $values[$monthIndex[$month]] = $value;
+            }
+        }
+
         return [
-            'labels' => array_column($visible, 'type'),
-            'counts' => array_map('intval', array_column($visible, 'count')),
-            'period' => $filtered ? 'Filtered' : 'All time',
-            'colors' => array_map(
-                static fn (int $index): string => self::PALETTE[$index % \count(self::PALETTE)],
-                array_keys($visible),
-            ),
+            'type' => $type,
+            'values' => array_map(static fn (float $value): float => round($value, 2), $values),
+            'total' => round(array_sum($values), 2),
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @param callable(string): string   $label
+     * @param callable(string, int): string $color
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function valueMixByCurrency(
+        array $rows,
+        string $groupKey,
+        callable $label,
+        callable $color,
+        bool $filtered,
+    ): array {
+        $grouped = [];
+        foreach ($rows as $row) {
+            $currency = self::scalar($row['currency']);
+            $group = self::scalar($row[$groupKey]);
+            $grouped[$currency][$group] = ($grouped[$currency][$group] ?? 0) + (float) $row['total'];
+        }
+
+        $charts = [];
+        foreach (CurrencyEnum::cases() as $currency) {
+            $groups = $grouped[$currency->value] ?? [];
+            if ([] === $groups) {
+                continue;
+            }
+
+            arsort($groups);
+            $visible = \array_slice($groups, 0, 6, true);
+            $rest = \array_slice($groups, 6, null, true);
+            if ([] !== $rest) {
+                $visible['Other'] = array_sum($rest);
+            }
+
+            $labels = [];
+            $values = [];
+            $colors = [];
+            foreach ($visible as $group => $value) {
+                $labels[] = $label((string) $group);
+                $values[] = round($value, 2);
+                $colors[] = $color((string) $group, \count($colors));
+            }
+
+            $charts[] = [
+                'currency' => $currency->value,
+                'title' => $currency->labels(),
+                'symbol' => $currency->symbol(),
+                'labels' => $labels,
+                'values' => $values,
+                'colors' => $colors,
+                'period' => $filtered ? 'Filtered' : 'All time',
+            ];
+        }
+
+        return $charts;
+    }
+
+    /** Doctrine may hydrate an enum column as its case or its backing value. */
+    private static function scalar(mixed $value): string
+    {
+        return $value instanceof \BackedEnum ? (string) $value->value : (string) $value;
     }
 
     private function formatMonthLabel(string $monthKey): string

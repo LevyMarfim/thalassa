@@ -179,6 +179,129 @@ class TransactionRepository extends ServiceEntityRepository
             }
         }
 
+        $months = $this->monthKeysForActivity($activeMonths, $filter);
+        if ([] === $months) {
+            return ['months' => [], 'rows' => []];
+        }
+
+        return ['months' => $months, 'rows' => array_values($activity)];
+    }
+
+    /**
+     * Absolute money moved per operation and currency. Debits are stored
+     * negative, so ABS() keeps the magnitude instead of letting credits and
+     * debits cancel each other out inside a doughnut slice.
+     *
+     * @return list<array{operation: string, currency: string, total: float}>
+     */
+    public function findOperationTotalsByUser(User $user, ?TransactionFilter $filter = null): array
+    {
+        $qb = $this->createQueryBuilder('t')
+            ->select('t.operation AS operation')
+            ->addSelect('a.currency AS currency')
+            ->addSelect('SUM(ABS(t.totalPrice)) AS total')
+            ->innerJoin('t.account', 'a')
+            ->groupBy('t.operation', 'a.currency');
+        $this->applyCriteria($qb, $user, $filter);
+
+        return $this->mapValueRows($qb->getQuery()->getArrayResult(), 'operation');
+    }
+
+    /**
+     * Absolute money moved per operation type and currency. One doughnut per
+     * currency keeps BRL and USD values from being added together.
+     *
+     * @return list<array{type: string, currency: string, total: float}>
+     */
+    public function findOperationTypeTotalsByUser(User $user, ?TransactionFilter $filter = null): array
+    {
+        $qb = $this->createQueryBuilder('t')
+            ->select('ot.type AS type')
+            ->addSelect('a.currency AS currency')
+            ->addSelect('SUM(ABS(t.totalPrice)) AS total')
+            ->innerJoin('t.operationType', 'ot')
+            ->innerJoin('t.account', 'a')
+            ->groupBy('ot.type', 'a.currency');
+        $this->applyCriteria($qb, $user, $filter);
+
+        return $this->mapValueRows($qb->getQuery()->getArrayResult(), 'type');
+    }
+
+    /**
+     * Absolute monthly totals per operation type and currency, across the full
+     * filtered history so the type picker can show any period already in the
+     * ledger. Movement-date filters still cap the month axis.
+     *
+     * @return array{
+     *     months: list<string>,
+     *     rows: list<array{month: string, type: string, currency: string, total: float}>,
+     * }
+     */
+    public function findMonthlyTypeActivityByUser(User $user, ?TransactionFilter $filter = null): array
+    {
+        $qb = $this->createQueryBuilder('t')
+            ->select('t.movement AS movement')
+            ->addSelect('t.totalPrice AS totalPrice')
+            ->addSelect('ot.type AS type')
+            ->addSelect('a.currency AS currency')
+            ->innerJoin('t.operationType', 'ot')
+            ->innerJoin('t.account', 'a');
+        $this->applyCriteria($qb, $user, $filter);
+
+        $activity = [];
+        $activeMonths = [];
+        foreach ($qb->getQuery()->getArrayResult() as $row) {
+            $movement = $row['movement'];
+            $month = $movement instanceof \DateTimeInterface
+                ? $movement->format('Y-m')
+                : substr((string) $movement, 0, 7);
+            $activeMonths[$month] = true;
+
+            $key = self::scalarValue($row['currency']).'|'.self::scalarValue($row['type']).'|'.$month;
+            $activity[$key] ??= [
+                'month' => $month,
+                'type' => self::scalarValue($row['type']),
+                'currency' => self::scalarValue($row['currency']),
+                'total' => 0.0,
+            ];
+            $activity[$key]['total'] += abs((float) $row['totalPrice']);
+        }
+
+        $months = [] === $activeMonths ? [] : $this->monthKeysForActivity($activeMonths, $filter);
+
+        return [
+            'months' => $months,
+            'rows' => array_values($activity),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function mapValueRows(array $rows, string $groupKey): array
+    {
+        return array_map(
+            static fn (array $row): array => [
+                $groupKey => self::scalarValue($row[$groupKey]),
+                'currency' => self::scalarValue($row['currency']),
+                'total' => round((float) $row['total'], 2),
+            ],
+            $rows,
+        );
+    }
+
+    /**
+     * The month axis always reaches the current month (or the filter's "to"
+     * bound), so even a dormant ledger can be inspected over a long range.
+     *
+     * @param array<string, true> $activeMonths
+     *
+     * @return list<string> Y-m keys, chronological
+     */
+    private function monthKeysForActivity(array $activeMonths, ?TransactionFilter $filter): array
+    {
         $timezone = new \DateTimeZone('America/Sao_Paulo');
         $current = (new \DateTimeImmutable('now', $timezone))->modify('first day of this month');
         $end = max($current->format('Y-m'), max(array_keys($activeMonths)));
@@ -189,42 +312,12 @@ class TransactionRepository extends ServiceEntityRepository
 
         $start = min(array_keys($activeMonths));
         if ($end < $start) {
-            return ['months' => [], 'rows' => []];
+            return [];
         }
 
-        $months = $this->monthKeys(
+        return $this->monthKeys(
             new \DateTimeImmutable($start.'-01', $timezone),
             new \DateTimeImmutable($end.'-01', $timezone),
-        );
-
-        return ['months' => $months, 'rows' => array_values($activity)];
-    }
-
-    /**
-     * Most frequent operation types in the filtered slice, used for the small
-     * doughnut chart. Counts are currency-independent, so unlike money amounts
-     * they can be compared across BRL and USD without an exchange rate.
-     *
-     * @return list<array{type: string, count: int}>
-     */
-    public function findOperationTypeCountsByUser(User $user, ?TransactionFilter $filter = null): array
-    {
-        $qb = $this->createQueryBuilder('t')
-            ->select('ot.type AS type')
-            ->addSelect('COUNT(t.id) AS total')
-            ->innerJoin('t.operationType', 'ot')
-            ->groupBy('ot.type')
-            ->orderBy('total', 'DESC')
-            ->addOrderBy('ot.type', 'ASC')
-            ->setMaxResults(7);
-        $this->applyCriteria($qb, $user, $filter);
-
-        return array_map(
-            static fn (array $row): array => [
-                'type' => (string) $row['type'],
-                'count' => (int) $row['total'],
-            ],
-            $qb->getQuery()->getArrayResult(),
         );
     }
 
