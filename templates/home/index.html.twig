@@ -70,6 +70,24 @@
                 {% endif %}
             </section>
 
+            <section class="card card--compact home-span-12" aria-labelledby="cashflow-heading">
+                <h2 id="cashflow-heading">Cash flow</h2>
+                <p class="card__hint">Monthly net movement — credits minus debits. Negative months mean more money went out than came in.</p>
+
+                {% if monthlyCharts is empty %}
+                    <div class="empty-state">
+                        <p>No cash flow yet.</p>
+                        <small>It appears here as you record transactions.</small>
+                    </div>
+                {% else %}
+                    <div class="chart-panels chart-panels--compact">
+                        {% for chart in monthlyCharts %}
+                            {{ include('components/_transaction_cashflow_chart.html.twig', {chart: chart}) }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </section>
+
             <section class="card card--compact home-span-12" aria-labelledby="monthly-types-heading">
                 <h2 id="monthly-types-heading">Monthly movement by operation type</h2>
                 <p class="card__hint">Pick an operation type to plot its monthly totals. Values are absolute money moved, not a signed balance.</p>

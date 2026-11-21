@@ -1,0 +1,32 @@
+{# One currency's monthly net cash flow (credits minus debits). It reuses the
+   monthly payload and range buttons; the Stimulus controller slices the same
+   full filtered history and draws green/red bars above/below zero. #}
+{% set available_months = chart.labels|length %}
+{% set default_is_all = chart.defaultRange == 0 %}
+<figure class="chart-panel chart-panel--compact"
+        data-controller="transaction-chart"
+        data-transaction-chart-kind-value="cashflow"
+        data-transaction-chart-data-value="{{ chart|json_encode|e('html_attr') }}">
+    <figcaption>
+        <span>{{ chart.title }} · cash flow</span>
+        {{ include('components/_chart_range_buttons.html.twig', {chart: chart}) }}
+    </figcaption>
+
+    <div class="chart-canvas-wrap chart-canvas-wrap--compact">
+        <canvas data-transaction-chart-target="canvas"
+                role="img"
+                aria-label="Monthly net cash flow for {{ chart.title }} accounts"></canvas>
+    </div>
+
+    <p class="chart-summary" data-transaction-chart-target="summary" aria-live="polite">
+        {% if default_is_all %}
+            All time ({{ available_months }} {{ available_months == 1 ? 'month' : 'months' }})
+        {% else %}
+            Last {{ chart.defaultRange }} months
+        {% endif %}
+    </p>
+
+    <noscript>
+        <p class="chart-noscript">Enable JavaScript to see the chart.</p>
+    </noscript>
+</figure>

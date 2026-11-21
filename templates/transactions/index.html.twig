@@ -83,6 +83,27 @@
                 {% endif %}
             </section>
 
+            <section class="card card--compact tx-span-12" aria-labelledby="tx-cashflow-heading">
+                <h2 id="tx-cashflow-heading" class="sr-only">Monthly cash flow</h2>
+                {% if monthlyCharts is empty %}
+                    <div class="empty-state">
+                        {% if filter.isActive %}
+                            <p>No cash flow matches these filters.</p>
+                            <small>Adjust them or <a href="{{ path('app_transactions') }}">clear the filters</a>.</small>
+                        {% else %}
+                            <p>No cash flow yet.</p>
+                            <small>It appears here as you record transactions.</small>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="chart-panels chart-panels--compact">
+                        {% for chart in monthlyCharts %}
+                            {{ include('components/_transaction_cashflow_chart.html.twig', {chart: chart}) }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </section>
+
             <section class="card card--compact tx-span-12 tx-filters" aria-labelledby="filters-heading">
                 <div class="card__heading-row">
                     <h2 id="filters-heading">Filters</h2>

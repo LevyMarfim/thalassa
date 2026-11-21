@@ -10,34 +10,7 @@
         data-transaction-chart-data-value="{{ chart|json_encode|e('html_attr') }}">
     <figcaption>
         <span>{{ chart.title }} · monthly movement</span>
-        <span class="chart-range" role="group" aria-label="Time range">
-            {% for range in [
-                {months: 3, label: '3M'},
-                {months: 6, label: '6M'},
-                {months: 12, label: '1Y'},
-                {months: 24, label: '2Y'},
-                {months: 36, label: '3Y'},
-                {months: 60, label: '5Y'},
-            ] %}
-                {# Offer windows the history covers, plus the preselected window:
-                   a last movement in jun/22 can still open on 5Y even when the
-                   ledger itself is a few months shorter than 60. #}
-                {% if available_months >= range.months or range.months == chart.defaultRange %}
-                    <button type="button"
-                            class="chart-range__button"
-                            data-action="transaction-chart#showRange"
-                            data-transaction-chart-target="rangeButton"
-                            data-transaction-chart-range-param="{{ range.months }}"
-                            aria-pressed="{{ not default_is_all and range.months == chart.defaultRange ? 'true' : 'false' }}">{{ range.label }}</button>
-                {% endif %}
-            {% endfor %}
-            <button type="button"
-                    class="chart-range__button"
-                    data-action="transaction-chart#showRange"
-                    data-transaction-chart-target="rangeButton"
-                    data-transaction-chart-range-param="0"
-                    aria-pressed="{{ default_is_all ? 'true' : 'false' }}">All</button>
-        </span>
+        {{ include('components/_chart_range_buttons.html.twig', {chart: chart}) }}
     </figcaption>
 
     <div class="chart-canvas-wrap chart-canvas-wrap--compact">

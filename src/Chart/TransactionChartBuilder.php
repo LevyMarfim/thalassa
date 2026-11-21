@@ -38,6 +38,7 @@ final class TransactionChartBuilder
      *     labels: list<string>,
      *     credits: list<float>,
      *     debits: list<float>,
+     *     net: list<float> credits minus debits, for the cash-flow chart,
      * }> one compact chart per currency with activity somewhere in the history
      */
     public function buildMonthly(array $monthKeys, array $rows): array
@@ -65,10 +66,17 @@ final class TransactionChartBuilder
 
             $credits = [];
             $debits = [];
+            $net = [];
             foreach ($monthKeys as $key) {
                 $row = $values[$key] ?? null;
-                $credits[] = round((float) ($row['credits'] ?? 0), 2);
-                $debits[] = round((float) ($row['debits'] ?? 0), 2);
+                $monthCredits = round((float) ($row['credits'] ?? 0), 2);
+                $monthDebits = round((float) ($row['debits'] ?? 0), 2);
+                $credits[] = $monthCredits;
+                $debits[] = $monthDebits;
+                // Debits are stored negative, and the repository already
+                // normalises them to magnitudes, so this is the signed cash
+                // flow for the month rather than a second source of truth.
+                $net[] = round($monthCredits - $monthDebits, 2);
             }
 
             // Open on the shortest preset that still contains this currency's
@@ -101,6 +109,7 @@ final class TransactionChartBuilder
                 'labels' => $labels,
                 'credits' => $credits,
                 'debits' => $debits,
+                'net' => $net,
             ];
         }
 

@@ -396,10 +396,13 @@ final class TransactionControllerTest extends WebTestCase
         $this->createTransaction($brl, 100.00, null, OperationEnum::CREDIT, '2026-10-10');
         $this->createAccountWithTransaction($usd, 50.00, CurrencyEnum::USD, OperationEnum::CREDIT);
 
-        // Unfiltered: both currencies are plotted, each with its own value
-        // doughnut so BRL and USD are never added together.
+        // Unfiltered: both currencies get their own movement/cash-flow pair and
+        // value doughnut, so BRL and USD are never added together.
         $unfiltered = $client->request('GET', '/transactions');
         self::assertCount(2, $unfiltered->filter('[data-transaction-chart-kind-value="monthly"]'));
+        self::assertCount(2, $unfiltered->filter('[data-transaction-chart-kind-value="cashflow"]'));
+        self::assertSame(100.0, (float) array_sum($this->chartData($unfiltered, 'cashflow', 'BRL')['net']));
+        self::assertSame(50.0, (float) array_sum($this->chartData($unfiltered, 'cashflow', 'USD')['net']));
         self::assertSame(100.0, (float) array_sum($this->chartData($unfiltered, 'types', 'BRL')['values']));
         self::assertSame(50.0, (float) array_sum($this->chartData($unfiltered, 'types', 'USD')['values']));
 
@@ -409,13 +412,36 @@ final class TransactionControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertCount(1, $filtered->filter('[data-transaction-chart-kind-value="monthly"]'));
+        self::assertCount(1, $filtered->filter('[data-transaction-chart-kind-value="cashflow"]'));
         $monthly = $this->chartData($filtered, 'monthly', 'BRL');
         self::assertSame(100.0, (float) array_sum($monthly['credits']));
         self::assertSame(0.0, (float) array_sum($monthly['debits']));
 
+        $cashFlow = $this->chartData($filtered, 'cashflow', 'BRL');
+        self::assertSame(100.0, (float) array_sum($cashFlow['net']));
+
         $types = $this->chartData($filtered, 'types', 'BRL');
         self::assertSame(100.0, (float) array_sum($types['values']));
         self::assertSame('Filtered', $types['period']);
+    }
+
+    public function testCashFlowChartUsesSignedMonthlyNet(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+
+        $this->createTransaction($this->uniqueDescription('FLOW-CREDIT'), 100.00, null, OperationEnum::CREDIT, '2026-10-10');
+        $this->createTransaction($this->uniqueDescription('FLOW-DEBIT'), 30.00, null, OperationEnum::DEBIT, '2026-10-15');
+        $this->createTransaction($this->uniqueDescription('FLOW-OLD-DEBIT'), 40.00, null, OperationEnum::DEBIT, '2026-09-10');
+
+        $crawler = $client->request('GET', '/transactions');
+        $cashFlow = $this->chartData($crawler, 'cashflow', 'BRL');
+        $net = array_map('floatval', $cashFlow['net']);
+
+        self::assertContains(-40.0, $net, 'A debit-only month must be negative');
+        self::assertContains(70.0, $net, 'A mixed month is credits minus debits');
+        self::assertSame(30.0, (float) array_sum($net));
     }
 
     public function testMonthlyChartWindowFollowsTheMovementDateFilter(): void

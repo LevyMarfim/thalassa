@@ -12,16 +12,21 @@ const COMPACT = new Intl.NumberFormat('pt-BR', {
 });
 
 const MUTED = '#64748b';
+const POSITIVE_RGB = '16, 185, 129';
+const NEGATIVE_RGB = '239, 68, 68';
+const NEUTRAL_RGB = '148, 163, 184';
 
 /** Month counts offered by the range buttons, with 0 meaning All. */
 const RANGES = [0, 3, 6, 12, 24, 36, 60];
+const SERIES_KINDS = ['monthly', 'cashflow'];
 
 /**
- * Two small charts for the Transactions page:
+ * Compact charts for the Transactions page and dashboard:
  *
- *  - monthly credits/debits per currency (grouped bars). The server sends the
- *    whole filtered history; the 3M/6M/1Y/2Y/3Y/5Y/All buttons slice it here,
- *    just like the dashboard balance chart, so old movements remain reachable;
+ *  - monthly credits/debits per currency (grouped bars), plus the same months
+ *    as net cash-flow bars (green above zero, red below). The server sends the
+ *    whole filtered history; the
+ *    3M/6M/1Y/2Y/3Y/5Y/All buttons slice it here, so old movements stay reachable;
  *  - absolute money moved by operation (credits/debits) and by operation type,
  *    one doughnut per currency; both share the payload shape below.
  *
@@ -36,15 +41,23 @@ export default class extends Controller {
     static targets = ['canvas', 'rangeButton', 'summary'];
 
     connect() {
-        if ('monthly' !== this.kindValue) {
+        if (!SERIES_KINDS.includes(this.kindValue)) {
             this.chart = new Chart(this.canvasTarget, this.typeConfig());
             return;
         }
 
         const data = this.dataValue;
         this.fullLabels = data.labels;
-        this.fullCredits = data.credits;
-        this.fullDebits = data.debits;
+        if (this.isCashFlow()) {
+            // Cached payloads may predate the net series; deriving it here keeps
+            // the chart correct without a second server round-trip.
+            this.fullNet = data.net ?? data.credits.map(
+                (credit, index) => Math.round((credit - data.debits[index]) * 100) / 100,
+            );
+        } else {
+            this.fullCredits = data.credits;
+            this.fullDebits = data.debits;
+        }
 
         // The builder picks the shortest preset covering the currency's last
         // movement (or All for very old data), so an old ledger opens on data
@@ -56,7 +69,10 @@ export default class extends Controller {
         this.range = 0 === this.rangeParam ? this.fullLabels.length : this.rangeParam;
         this.sliceHistory();
 
-        this.chart = new Chart(this.canvasTarget, this.monthlyConfig());
+        this.chart = new Chart(
+            this.canvasTarget,
+            this.isCashFlow() ? this.cashFlowConfig() : this.monthlyConfig(),
+        );
         this.syncRangeButtons();
         this.updateSummary();
     }
@@ -67,7 +83,7 @@ export default class extends Controller {
     }
 
     showRange(event) {
-        if ('monthly' !== this.kindValue) {
+        if (!SERIES_KINDS.includes(this.kindValue)) {
             return;
         }
 
@@ -84,8 +100,16 @@ export default class extends Controller {
         this.sliceHistory();
 
         this.chart.data.labels = this.labels;
-        this.chart.data.datasets[0].data = this.credits;
-        this.chart.data.datasets[1].data = this.debits;
+        if (this.isCashFlow()) {
+            const dataset = this.chart.data.datasets[0];
+            dataset.data = this.net;
+            // The visible slice changed, so the per-bar colours must change too.
+            dataset.backgroundColor = this.cashFlowColors(0.78);
+            dataset.borderColor = this.cashFlowColors();
+        } else {
+            this.chart.data.datasets[0].data = this.credits;
+            this.chart.data.datasets[1].data = this.debits;
+        }
         // Drop a tooltip pinned to a month that may no longer exist.
         this.chart.setActiveElements([]);
         this.chart.tooltip?.setActiveElements?.([], { x: 0, y: 0 });
@@ -95,8 +119,25 @@ export default class extends Controller {
         this.updateSummary();
     }
 
+    isCashFlow() {
+        return 'cashflow' === this.kindValue;
+    }
+
+    cashFlowColors(alpha = 1) {
+        return this.net.map((value) => {
+            const rgb = value > 0
+                ? POSITIVE_RGB
+                : value < 0 ? NEGATIVE_RGB : NEUTRAL_RGB;
+            return 1 === alpha ? `rgb(${rgb})` : `rgba(${rgb}, ${alpha})`;
+        });
+    }
+
     sliceHistory() {
         this.labels = this.fullLabels.slice(-this.range);
+        if (this.isCashFlow()) {
+            this.net = this.fullNet.slice(-this.range);
+            return;
+        }
         this.credits = this.fullCredits.slice(-this.range);
         this.debits = this.fullDebits.slice(-this.range);
     }
@@ -182,6 +223,62 @@ export default class extends Controller {
                                 const index = items[0].dataIndex;
                                 return `Net: ${format(this.credits[index] - this.debits[index])}`;
                             },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        border: { display: false },
+                        ticks: { color: MUTED, maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { size: 10 } },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        border: { display: false },
+                        grid: { color: 'rgba(148, 163, 184, 0.18)' },
+                        ticks: { color: MUTED, font: { size: 10 }, callback: (value) => COMPACT.format(value) },
+                    },
+                },
+            },
+        };
+    }
+
+    cashFlowConfig() {
+        const data = this.dataValue;
+        const format = (value) => `${data.symbol} ${MONEY.format(value)}`;
+
+        return {
+            type: 'bar',
+            data: {
+                labels: this.labels,
+                datasets: [{
+                    label: 'Net cash flow',
+                    data: this.net,
+                    backgroundColor: this.cashFlowColors(0.78),
+                    borderColor: this.cashFlowColors(),
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    maxBarThickness: 16,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                animation: { duration: 350, easing: 'easeOutQuart' },
+                layout: { padding: { top: 4 } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.96)',
+                        titleColor: '#e2e8f0',
+                        bodyColor: '#f8fafc',
+                        padding: 10,
+                        cornerRadius: 8,
+                        boxPadding: 3,
+                        usePointStyle: true,
+                        callbacks: {
+                            label: (item) => ` Net: ${format(item.parsed.y)}`,
                         },
                     },
                 },

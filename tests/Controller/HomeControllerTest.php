@@ -80,6 +80,7 @@ final class HomeControllerTest extends WebTestCase
         foreach ([
             'chart-heading',
             'monthly-heading',
+            'cashflow-heading',
             'monthly-types-heading',
             'operations-heading',
             'types-heading',
@@ -146,7 +147,36 @@ final class HomeControllerTest extends WebTestCase
         self::assertSame('BRL', $monthly['currency']);
         self::assertSame([100.0], array_map('floatval', $monthly['credits']));
         self::assertSame([30.0], array_map('floatval', $monthly['debits']));
+        self::assertSame([70.0], array_map('floatval', $monthly['net']));
         self::assertSame(0, $monthly['defaultRange']);
+    }
+
+    public function testHomeShowsMonthlyCashFlowChart(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser(sprintf('home-cashflow-%s', uniqid()));
+        $client->loginUser($user);
+
+        $date = (new \DateTimeImmutable('now', new \DateTimeZone('America/Sao_Paulo')))
+            ->format('Y-m-10');
+        $this->seedChartAccount($user, CurrencyEnum::BRL, [
+            [$date, OperationEnum::CREDIT, 100.00],
+            [$date, OperationEnum::DEBIT, 30.00],
+        ]);
+
+        $crawler = $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+        $panel = $crawler->filter('section[aria-labelledby="cashflow-heading"] [data-transaction-chart-kind-value="cashflow"]');
+        self::assertCount(1, $panel);
+
+        $data = $this->transactionChartData($crawler, 'cashflow');
+        self::assertSame('BRL', $data['currency']);
+        self::assertSame([100.0], array_map('floatval', $data['credits']));
+        self::assertSame([30.0], array_map('floatval', $data['debits']));
+        self::assertSame([70.0], array_map('floatval', $data['net']));
+        self::assertSame(0, $data['defaultRange']);
+        self::assertSame('All', $panel->filter('.chart-range__button[aria-pressed="true"]')->text());
     }
 
     public function testHomeShowsMonthlyMovementByOperationTypeWithPicker(): void
