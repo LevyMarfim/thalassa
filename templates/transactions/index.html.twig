@@ -5,7 +5,8 @@
 {% block title %}Transactions · FinFlow{% endblock %}
 
 {% block dashboard_content %}
-    <div class="tx-page">
+    {# Monthly movement and cash flow share one selected period. #}
+    <div class="tx-page" data-controller="chart-period">
         <header class="dash-header dash-header--split">
             <div>
                 <h1>Transactions</h1>

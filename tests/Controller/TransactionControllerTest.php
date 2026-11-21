@@ -444,6 +444,25 @@ final class TransactionControllerTest extends WebTestCase
         self::assertSame(30.0, (float) array_sum($net));
     }
 
+    public function testTransactionsChartsShareOnePeriodController(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $this->seedTransactionData();
+        $this->createTransaction($this->uniqueDescription('PERIOD-CHART'), 100.00, null, OperationEnum::CREDIT, '2026-10-10');
+
+        $crawler = $client->request('GET', '/transactions');
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filter('.tx-page[data-controller="chart-period"]'));
+
+        foreach (['monthly', 'cashflow'] as $kind) {
+            $panels = $crawler->filter(sprintf('[data-transaction-chart-kind-value="%s"]', $kind));
+            self::assertGreaterThan(0, $panels->count());
+            self::assertGreaterThan(0, $panels->first()->filter('.chart-range__button')->count());
+        }
+    }
+
     public function testMonthlyChartWindowFollowsTheMovementDateFilter(): void
     {
         $client = static::createClient();

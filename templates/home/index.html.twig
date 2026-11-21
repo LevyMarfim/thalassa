@@ -4,7 +4,8 @@
 {% block title %}Dashboard · FinFlow{% endblock %}
 
 {% block dashboard_content %}
-    <div class="home-page">
+    {# One period selector drives every range-bearing chart on the page. #}
+    <div class="home-page" data-controller="chart-period">
         <header class="dash-header dash-header--split">
             <div>
                 <h1>Welcome back, {{ app.user.username }}</h1>

@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import Chart from 'chart.js/auto';
+import { APPLY, requestPeriod } from './chart_period_events.js';
 
 const MONEY = new Intl.NumberFormat('pt-BR', {
     minimumFractionDigits: 2,
@@ -53,7 +54,8 @@ const crosshair = {
  *  - clicking a legend item hides/shows that account;
  *  - the 3M/6M/1Y/2Y/3Y/5Y/All buttons re-slice the same history client-side,
  *    with a transition instead of a reload (only ranges the ledger covers are
- *    rendered);
+ *    rendered). On pages with a period controller the selection is shared with
+ *    the other range charts;
  *  - the chart is responsive down to the card width.
  */
 export default class extends Controller {
@@ -61,6 +63,9 @@ export default class extends Controller {
     static targets = ['canvas', 'rangeButton', 'summary'];
 
     connect() {
+        this.onPeriodApplied = (event) => this.applyExternalPeriod(event);
+        window.addEventListener(APPLY, this.onPeriodApplied);
+
         this.fullLabels = this.dataValue.labels;
         this.fullDatasets = this.dataValue.datasets;
         this.fullData = this.fullDatasets.map((dataset) => dataset.data);
@@ -79,12 +84,26 @@ export default class extends Controller {
     }
 
     disconnect() {
+        window.removeEventListener(APPLY, this.onPeriodApplied);
         this.chart?.destroy();
         this.chart = null;
     }
 
     showRange(event) {
-        const requested = Number(event.params.range);
+        this.setRange(Number(event.params.range));
+    }
+
+    applyExternalPeriod(event) {
+        const months = Number(event.detail?.months);
+        if (!Number.isInteger(months) || months < 0 || months === this.rangeParam) {
+            return;
+        }
+
+        // Already broadcast by the page's period controller; don't echo it back.
+        this.setRange(months, false);
+    }
+
+    setRange(requested, broadcast = true) {
         if (!Number.isInteger(requested) || requested < 0) {
             return;
         }
@@ -94,7 +113,11 @@ export default class extends Controller {
             ? this.fullLabels.length
             : Math.min(requested, this.fullLabels.length);
 
-        this.rangeParam = requested;
+        // A window longer than the whole ledger is really All. The balance
+        // chart only renders buttons its history covers, so without this the
+        // external period could leave no button pressed and overstate the span.
+        const clamped = requested > this.fullLabels.length;
+        this.rangeParam = clamped ? 0 : requested;
         this.range = range;
         this.chart.data.labels = this.fullLabels.slice(-range);
         this.chart.data.datasets.forEach((dataset, index) => {
@@ -108,6 +131,10 @@ export default class extends Controller {
 
         this.syncRangeButtons();
         this.updateSummary();
+
+        if (broadcast) {
+            requestPeriod(requested);
+        }
     }
 
     buildConfig(labels, data) {

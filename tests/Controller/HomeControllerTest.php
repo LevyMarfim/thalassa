@@ -94,6 +94,47 @@ final class HomeControllerTest extends WebTestCase
     }
 
     /**
+     * The three range-bearing charts opt into one page-wide period, while the
+     * type/doughnut cards (which have no range selector) stay out of it.
+     */
+    public function testHomeChartsShareOnePeriodController(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser(sprintf('home-period-%s', uniqid()));
+        $client->loginUser($user);
+
+        $date = (new \DateTimeImmutable('now', new \DateTimeZone('America/Sao_Paulo')))
+            ->format('Y-m-10');
+        $this->seedChartAccount($user, CurrencyEnum::BRL, [
+            [$date, OperationEnum::CREDIT, 100.00],
+        ]);
+
+        $crawler = $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filter('.home-page[data-controller="chart-period"]'));
+
+        $participants = [
+            ['chart-heading', '[data-controller="balance-chart"]'],
+            ['monthly-heading', '[data-transaction-chart-kind-value="monthly"]'],
+            ['cashflow-heading', '[data-transaction-chart-kind-value="cashflow"]'],
+        ];
+        foreach ($participants as [$heading, $selector]) {
+            $section = $crawler->filter(sprintf('section[aria-labelledby="%s"]', $heading));
+            self::assertCount(1, $section);
+            self::assertCount(1, $section->filter($selector));
+            self::assertGreaterThan(0, $section->filter('.chart-range__button')->count());
+        }
+
+        foreach (['monthly-types-heading', 'operations-heading', 'types-heading'] as $heading) {
+            self::assertCount(
+                0,
+                $crawler->filter(sprintf('section[aria-labelledby="%s"] .chart-range', $heading))
+            );
+        }
+    }
+
+    /**
      * The doughnuts now show absolute money moved instead of transaction
      * counts, sharing one Stimulus controller and one currency per panel.
      */

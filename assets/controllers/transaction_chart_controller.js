@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import Chart from 'chart.js/auto';
+import { APPLY, requestPeriod } from './chart_period_events.js';
 
 const MONEY = new Intl.NumberFormat('pt-BR', {
     minimumFractionDigits: 2,
@@ -26,7 +27,8 @@ const SERIES_KINDS = ['monthly', 'cashflow'];
  *  - monthly credits/debits per currency (grouped bars), plus the same months
  *    as net cash-flow bars (green above zero, red below). The server sends the
  *    whole filtered history; the
- *    3M/6M/1Y/2Y/3Y/5Y/All buttons slice it here, so old movements stay reachable;
+ *    3M/6M/1Y/2Y/3Y/5Y/All buttons slice it here, so old movements stay reachable.
+ *    On pages with a period controller a selection is shared across charts;
  *  - absolute money moved by operation (credits/debits) and by operation type,
  *    one doughnut per currency; both share the payload shape below.
  *
@@ -45,6 +47,10 @@ export default class extends Controller {
             this.chart = new Chart(this.canvasTarget, this.typeConfig());
             return;
         }
+
+        // Only the range-bearing charts follow dashboard-wide period changes.
+        this.onPeriodApplied = (event) => this.applyExternalPeriod(event);
+        window.addEventListener(APPLY, this.onPeriodApplied);
 
         const data = this.dataValue;
         this.fullLabels = data.labels;
@@ -78,17 +84,30 @@ export default class extends Controller {
     }
 
     disconnect() {
+        window.removeEventListener(APPLY, this.onPeriodApplied);
         this.chart?.destroy();
         this.chart = null;
     }
 
     showRange(event) {
-        if (!SERIES_KINDS.includes(this.kindValue)) {
+        this.setRange(Number(event.params.range));
+    }
+
+    applyExternalPeriod(event) {
+        const months = Number(event.detail?.months);
+        if (!Number.isInteger(months) || months < 0 || months === this.rangeParam) {
             return;
         }
 
-        const requested = Number(event.params.range);
-        if (!Number.isInteger(requested) || requested < 0) {
+        // The page's period controller already broadcast the change; re-emitting
+        // here would make every chart answer itself forever.
+        this.setRange(months, false);
+    }
+
+    setRange(requested, broadcast = true) {
+        if (!SERIES_KINDS.includes(this.kindValue)
+            || !Number.isInteger(requested)
+            || requested < 0) {
             return;
         }
 
@@ -117,6 +136,10 @@ export default class extends Controller {
 
         this.syncRangeButtons();
         this.updateSummary();
+
+        if (broadcast) {
+            requestPeriod(requested);
+        }
     }
 
     isCashFlow() {
