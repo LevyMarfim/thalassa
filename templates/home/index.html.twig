@@ -6,13 +6,9 @@
 {% block dashboard_content %}
     {# One period selector drives every range-bearing chart on the page. #}
     <div class="home-page" data-controller="chart-period">
-        <header class="dash-header dash-header--split">
-            <div>
-                <h1>Welcome back, {{ app.user.username }}</h1>
-                <p>Here is your money overview in BRL and USD.</p>
-            </div>
-            <a class="btn btn--ghost" href="{{ path('app_transactions') }}">View transactions →</a>
-        </header>
+        {# Kept for document structure and screen readers, but the visible header
+           was removed so the charts start higher on the screen. #}
+        <h1 class="sr-only">Dashboard</h1>
 
         <div class="home-layout">
             {% if currencySummaries is not empty %}

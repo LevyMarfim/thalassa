@@ -1303,8 +1303,7 @@ a.type-list__name:hover {
 }
 
 /* -------------------- Compact dashboard layouts -------------------- */
-.tx-page .dash-header,
-.home-page .dash-header { margin-bottom: 18px; }
+.tx-page .dash-header { margin-bottom: 18px; }
 
 /* Twelve columns give the charts a 2:1 split and let the filter form pack its
    eight controls into one dense row on a wide screen. Everything collapses to

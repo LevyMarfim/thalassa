@@ -22,7 +22,7 @@ final class HomeControllerTest extends WebTestCase
         self::assertResponseRedirects('/login');
     }
 
-    public function testAuthenticatedHomeShowsUser(): void
+    public function testAuthenticatedHomeShowsUserInSidebar(): void
     {
         $client = static::createClient();
         $username = sprintf('home-%s', uniqid());
@@ -31,7 +31,8 @@ final class HomeControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/');
 
         self::assertResponseIsSuccessful();
-        self::assertSelectorTextContains('h1', $username);
+        self::assertSelectorTextContains('.dash-user__name', $username);
+        self::assertSelectorTextContains('h1.sr-only', 'Dashboard');
     }
 
     /**
@@ -63,8 +64,8 @@ final class HomeControllerTest extends WebTestCase
 
     /**
      * The profile and accounts lists were replaced by charts: the dashboard
-     * keeps its greeting, balance/monthly/operation/type charts, a whole-ledger
-     * summary and recent activity, but no duplicate account or profile card.
+     * keeps an accessible heading, the balance/monthly/cash-flow/type charts, a
+     * whole-ledger summary and recent activity, with no visible header block.
      */
     public function testHomeReplacesProfileAndAccountsCardsWithCharts(): void
     {
@@ -76,6 +77,9 @@ final class HomeControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertCount(0, $crawler->filter('#profile-heading'));
         self::assertCount(0, $crawler->filter('#accounts-heading'));
+        self::assertCount(0, $crawler->filter('.home-page .dash-header'));
+        self::assertCount(1, $crawler->filter('.home-page h1.sr-only'));
+        self::assertStringNotContainsString('Welcome back', $crawler->text());
 
         foreach ([
             'chart-heading',
